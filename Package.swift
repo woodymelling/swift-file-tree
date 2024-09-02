@@ -13,14 +13,12 @@ let package = Package(
             targets: ["FilesBuilder"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/JohnSundell/Files", from: "4.2.0")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
         // Targets can depend on other targets in this package and products from dependencies.
         .target(
-            name: "FilesBuilder",
-            dependencies: ["Files"]
+            name: "FilesBuilder"
         ),
         .testTarget(
             name: "FilesBuilderTests",

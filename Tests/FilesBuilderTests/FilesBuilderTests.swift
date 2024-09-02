@@ -19,9 +19,18 @@ import Testing
                 File($0)
             }
         }
+    }.read()
+
+}
+
+@Test
+func justAFile() {
+}
+
+func directoryWithAFile() {
+    let description = Directory("Directory") {
+        File("AFile.txt")
     }
 
-    print(loader)
-
-
+    let output = description.read()
 }
