@@ -1,6 +1,3 @@
-// The Swift Programming Language
-// https://docs.swift.org/swift-book
-
 import Foundation
 
 @resultBuilder
@@ -18,25 +15,11 @@ struct FileSystemBuilder {
     }
 }
 
-
 protocol FileSystemComponent {
     associatedtype FileType
 
     func read() -> FileType
 }
-
-
-struct FileContent {
-    var fileName: String
-    var data: Data
-}
-
-
-struct DirectoryContents<T> {
-    var directoryName: String
-    var components: T
-}
-
 
 struct TupleFileSystemComponent<each T: FileSystemComponent>: FileSystemComponent {
     public var value: (repeat each T)
@@ -52,10 +35,8 @@ struct TupleFileSystemComponent<each T: FileSystemComponent>: FileSystemComponen
     }
 }
 
-
 struct File: FileSystemComponent {
     let path: String
-
 
     init(_ path: String) {
         self.path = path
@@ -96,6 +77,29 @@ struct Many<Content: FileSystemComponent>: FileSystemComponent {
     }
 }
 
+struct Optionally<Content: FileSystemComponent>: FileSystemComponent {
+    var content: () -> Content
+
+    init(@FileSystemBuilder content: @escaping () -> Content) {
+        self.content = content
+    }
+
+    func read() -> Content.FileType? {
+        nil
+    }
+}
+
+// MARK: Contents
+struct FileContent {
+    var fileName: String
+    var data: Data
+}
+
+struct DirectoryContents<T> {
+    var directoryName: String
+    var components: T
+}
+
 
 func foo() {
     let file: FileContent = File("AFile.txt").read()
@@ -108,6 +112,13 @@ func foo() {
     let dirFileFile: DirectoryContents<(FileContent, FileContent)> = Directory("") {
         File("")
         File("")
+    }.read()
+
+    let dirFileOptionalFile: DirectoryContents<(FileContent, FileContent?)> = Directory("") {
+        File("")
+        Optionally {
+            File("")
+        }
     }.read()
 
     let dirFileDirFile: DirectoryContents<(FileContent, DirectoryContents<FileContent>)> = Directory("") {
