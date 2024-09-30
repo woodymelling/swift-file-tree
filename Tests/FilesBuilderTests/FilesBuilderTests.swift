@@ -28,15 +28,15 @@ import Dependencies
 
 struct FileTests {
     @Test
-    func justAFile() throws {
-        try withDependencies {
+    func justAFile() async throws {
+        try await withDependencies {
             $0.fileManagerClient.data = { @Sendable in
                 #expect($0 == URL.applicationDirectory.appending(path: "test.txt"))
                 return Data()
             }
 
         } operation: {
-            let result = try File("test", .plainText)
+            let result = try await File("test", .plainText)
                 .read(from: URL.applicationDirectory)
 
             #expect(result == FileContent(fileName: "test", fileType: .plainText, data: Data()))
@@ -44,8 +44,8 @@ struct FileTests {
     }
 
     @Test
-    func directoryWithAFile() throws {
-        try withDependencies {
+    func directoryWithAFile() async throws {
+        try await withDependencies {
             $0.fileManagerClient.data = { @Sendable in
                 #expect($0 == URL.applicationDirectory.appending(path: "dir").appending(path: "test.txt"))
                 return Data()
@@ -55,7 +55,7 @@ struct FileTests {
                 File("test", .plainText)
             }
 
-            let result = try structure.read(from: URL.applicationDirectory)
+            let result = try await structure.read(from: URL.applicationDirectory)
 
             #expect(
                 result == DirectoryContents(
@@ -67,8 +67,8 @@ struct FileTests {
     }
 
     @Test
-    func dirDirFile() throws {
-        try withDependencies {
+    func dirDirFile() async throws {
+        try await withDependencies {
             $0.fileManagerClient.data = { @Sendable in
                 #expect($0 == URL.applicationDirectory
                     .appending(path: "dir")
@@ -85,7 +85,7 @@ struct FileTests {
                 }
             }
 
-            let result = try structure.read(from: URL.applicationDirectory)
+            let result = try await structure.read(from: URL.applicationDirectory)
 
             #expect(
                 result == DirectoryContents(
@@ -100,8 +100,8 @@ struct FileTests {
     }
 
     @Test
-    func manyFile() throws {
-        try withDependencies {
+    func manyFile() async throws {
+        try await withDependencies {
             $0.fileManagerClient.contentsOfDirectory = { @Sendable url in
                 return [
                     url.appendingPathComponent("file1", conformingTo: .plainText),
@@ -118,7 +118,7 @@ struct FileTests {
                 File($0, .plainText)
             }
 
-            let result = try structure.read(from: URL.applicationDirectory)
+            let result = try await structure.read(from: URL.applicationDirectory)
 
             #expect(
                 result == [
@@ -129,13 +129,30 @@ struct FileTests {
         }
     }
 
+    actor Verifier<T: Sendable & Hashable> {
+        var items: Set<T>
+
+        init(items: Set<T>) {
+            self.items = items
+        }
+
+        func seen(_ item: T) {
+            #expect(items.contains(item))
+        }
+    }
+
     @Test
-    func directoryWithMultipleFiles() throws {
+    func directoryWithMultipleFiles() async throws {
+        let expectations: Verifier<URL> = .init(
+            items:  [
+                URL.documentsDirectory.appending(path: "dir").appending(path: "test1.txt"),
+                URL.documentsDirectory.appending(path: "dir").appending(path: "test2.txt")
+            ]
+        )
 
-
-        try withDependencies {
+        try await withDependencies {
             $0.fileManagerClient.data = { @Sendable in
-                #expect($0 == URL.applicationDirectory.appending(path: "dir").appending(path: "test.txt"))
+                await expectations.seen($0)
                 return Data()
             }
         } operation: {
@@ -144,8 +161,9 @@ struct FileTests {
                 File("test2", .plainText)
             }
 
-            let result = try structure.read(from: URL.applicationDirectory)
-            let expected: DirectoryContents<FileContent, FileContent> =  DirectoryContents(
+            let result = try await structure.read(from: URL.documentsDirectory)
+            
+            let expected: DirectoryContents<(FileContent, FileContent)> =  DirectoryContents(
                 directoryName: "dir",
                 components: (
                     FileContent(fileName: "test1", fileType: .plainText, data: Data()),
@@ -154,7 +172,11 @@ struct FileTests {
             )
 
             #expect(
-                result == expected
+                result.components == expected.components
+            )
+
+            #expect(
+                result.directoryName == expected.directoryName
             )
         }
     }

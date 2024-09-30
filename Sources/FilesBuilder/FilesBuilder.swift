@@ -18,10 +18,10 @@ struct FileSystemBuilder {
     }
 }
 
-protocol FileSystemComponent {
-    associatedtype FileType
+protocol FileSystemComponent: Sendable {
+    associatedtype FileType: Sendable
 
-    func read(from url: URL) throws -> FileType
+    func read(from url: URL) async throws -> FileType
 }
 
 struct TupleFileSystemComponent<each T: FileSystemComponent>: FileSystemComponent {
@@ -33,8 +33,8 @@ struct TupleFileSystemComponent<each T: FileSystemComponent>: FileSystemComponen
 
     typealias FileType = (repeat (each T).FileType)
 
-    func read(from url: URL) throws -> FileType {
-        try (repeat (each value).read(from: url))
+    func read(from url: URL) async throws -> FileType {
+        try await (repeat (each value).read(from: url))
     }
 }
 
@@ -47,12 +47,12 @@ struct File: FileSystemComponent {
         self.fileType = fileType
     }
 
-    func read(from url: URL) throws -> FileContent {
+    func read(from url: URL) async throws -> FileContent {
         @Dependency(FileManagerClient.self) var fileManagerClient
         let fileUrl = url.appendingPathComponent(fileName, conformingTo: fileType)
 
 
-        return try FileContent(
+        return try await FileContent(
             fileName: self.fileName,
             fileType: self.fileType,
             data: fileManagerClient.data(contentsOf: fileUrl)
@@ -70,24 +70,26 @@ struct Directory<Content: FileSystemComponent>: FileSystemComponent {
         self.content = content()
     }
 
-    func read(from url: URL) throws -> DirectoryContents<Content.FileType> {
+    // This doesn't work because Content.FileType is a tuple, but we want DirectoryContents to have multiple types from that parameter pack
+    func read(from url: URL) async throws -> DirectoryContents<Content.FileType> {
         let directoryURL = url.appending(component: self.path)
+        let x = try await content.read(from: directoryURL)
 
-        return try DirectoryContents(
+        return DirectoryContents(
             directoryName: self.path,
-            components: content.read(from: directoryURL)
+            components: x
         )
     }
 }
 
 struct Many<Content: FileSystemComponent>: FileSystemComponent {
-    var content: (String) -> Content
+    var content: @Sendable (String) -> Content
 
-    init(@FileSystemBuilder _ content: @escaping (String) -> Content) {
+    init(@FileSystemBuilder _ content: @Sendable @escaping (String) -> Content) {
         self.content = content
     }
 
-    func read(from url: URL) throws -> [Content.FileType] {
+    func read(from url: URL) async throws -> [Content.FileType] {
         @Dependency(\.fileManagerClient) var fileManagerClient
 
         let paths = try fileManagerClient.contentsOfDirectory(atPath: url)
@@ -96,15 +98,28 @@ struct Many<Content: FileSystemComponent>: FileSystemComponent {
             content($0.deletingPathExtension().lastPathComponent)
         }
 
-        return try components.map { try $0.read(from: url) }
+        return try await withThrowingTaskGroup(of: Content.FileType.self) {
+            for component in components {
+                $0.addTask {
+                    try await component.read(from: url)
+                }
+            }
 
+            var results: [Content.FileType] = []
+
+            for try await result in $0 {
+                results.append(result)
+            }
+
+            return results
+        }
     }
 }
 
 struct Optionally<Content: FileSystemComponent>: FileSystemComponent {
-    var content: () -> Content
+    var content: @Sendable () -> Content
 
-    init(@FileSystemBuilder content: @escaping () -> Content) {
+    init(@FileSystemBuilder content: @Sendable @escaping () -> Content) {
         self.content = content
     }
 
@@ -120,29 +135,43 @@ struct FileContent: Equatable {
     var data: Data
 }
 
-struct DirectoryContents<each T> {
+//struct DirectoryContents<each T> {
+//    var directoryName: String
+//    var components: (repeat each T)
+//
+//    init(directoryName: String, components: (repeat each T)) {
+//        self.directoryName = directoryName
+//        self.components = components
+//    }
+//
+//}
+//
+struct DirectoryContents<T: Sendable>: Sendable {
     var directoryName: String
-    var components: (repeat each T)
+    var components: T
 
-    init(directoryName: String, components: (repeat each T)) {
+    init(directoryName: String, components: T) {
         self.directoryName = directoryName
         self.components = components
     }
 
 }
+//
+//struct DirectoryContents<each T: Sendable> {
+//    public var components: (repeat each T)
+//
+//    @inlinable public init(directoryName: String, components: (repeat each T)) {
+//        self.components = components
+//    }
+//
+////    typealias FileType = (repeat (each T).FileType)
+////
+////    func read(from url: URL) async throws -> FileType {
+////        try await (repeat (each value).read(from: url))
+////    }
+//}
 
-extension DirectoryContents: Equatable where repeat each T: Equatable {
-    static func == (lhs: Self, rhs: Self) -> Bool {
-        guard lhs.directoryName == rhs.directoryName else { return false }
-        for (left, right) in repeat (each lhs.components, each rhs.components) {
-          guard left == right else { return false }
-        }
-        return true
-      }
-
-
-}
-
+extension DirectoryContents: Equatable where T: Equatable {}
 
 func foo() {
 
@@ -178,7 +207,7 @@ func foo() {
 
 @DependencyClient
 struct FileManagerClient: Sendable {
-    var data: @Sendable (_ contentsOf: URL) throws -> Data
+    var data: @Sendable (_ contentsOf: URL) async throws -> Data
     var contentsOfDirectory: @Sendable (_ atPath: URL) throws -> [URL]
 }
 
