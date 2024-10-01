@@ -107,18 +107,18 @@ public struct Directory<Content: FileSystemComponent>: FileSystemComponent {
     }
 }
 
-struct OptionalDirectory<Content: FileSystemComponent>: FileSystemComponent {
+public struct OptionalDirectory<Content: FileSystemComponent>: FileSystemComponent {
     let path: String
 
     var content: Content
 
-    init(_ path: String, @FileTreeBuilder content: () -> Content) {
+    public init(_ path: String, @FileTreeBuilder content: () -> Content) {
         self.path = path
         self.content = content()
     }
 
     // This doesn't work because when Content.FileType is a tuple, we want DirectoryContents to have multiple types from that parameter pack
-    func read(from url: URL) async throws -> DirectoryContents<Content.FileType>? {
+    public func read(from url: URL) async throws -> DirectoryContents<Content.FileType>? {
         @Dependency(\.fileManagerClient) var fileManagerClient
 
         let directoryURL = url.appending(component: self.path)
@@ -132,14 +132,14 @@ struct OptionalDirectory<Content: FileSystemComponent>: FileSystemComponent {
     }
 }
 
-struct Many<Content: FileSystemComponent>: FileSystemComponent {
+public struct Many<Content: FileSystemComponent>: FileSystemComponent {
     var content: @Sendable (String) -> Content
 
-    init(@FileTreeBuilder _ content: @Sendable @escaping (String) -> Content) {
+    public init(@FileTreeBuilder _ content: @Sendable @escaping (String) -> Content) {
         self.content = content
     }
 
-    func read(from url: URL) async throws -> [Content.FileType] {
+    public func read(from url: URL) async throws -> [Content.FileType] {
         @Dependency(\.fileManagerClient) var fileManagerClient
 
         let paths = try fileManagerClient.contentsOfDirectory(atPath: url)
