@@ -1,10 +1,14 @@
 import Testing
 import Foundation
-@testable import FilesBuilder
+@testable import FileTree
 import Dependencies
 
-struct FileTests {
-    @Test
+extension Tag {
+    @Tag static var fileReading: Self
+}
+
+struct FileTreeTests {
+    @Test(.tags(.fileReading))
     func justAFile() async throws {
         try await withDependencies {
             $0.fileManagerClient.data = { @Sendable in
@@ -20,7 +24,7 @@ struct FileTests {
         }
     }
 
-    @Test
+    @Test(.tags(.fileReading))
     func directoryWithAFile() async throws {
         try await withDependencies {
             $0.fileManagerClient.data = { @Sendable in
@@ -43,7 +47,7 @@ struct FileTests {
         }
     }
 
-    @Test
+    @Test(.tags(.fileReading))
     func dirDirFile() async throws {
         try await withDependencies {
             $0.fileManagerClient.data = { @Sendable in
@@ -76,7 +80,7 @@ struct FileTests {
         }
     }
 
-    @Test
+    @Test(.tags(.fileReading))
     func manyFile() async throws {
         try await withDependencies {
             $0.fileManagerClient.contentsOfDirectory = { @Sendable url in
@@ -107,7 +111,7 @@ struct FileTests {
 
 
 
-    @Test
+    @Test(.tags(.fileReading))
     func directoryWithMultipleFiles() async throws {
         let expectations: Verifier<URL, Void> = .init(
             items:  [
@@ -145,7 +149,7 @@ struct FileTests {
         }
     }
 
-    @Test
+    @Test(.tags(.fileReading))
     func nestedDirectories() async throws {
         let expectations: Verifier<URL, Void> = .init(
             items:  [
@@ -199,7 +203,7 @@ struct FileTests {
         }
     }
 
-    @Test func realWorldStructure() async throws {
+    @Test(.tags(.fileReading)) func realWorldStructure() async throws {
 
         let eventURL = URL.documentsDirectory.appending(path: "2024")
         let speakersURL = URL.documentsDirectory.appending(path: "2024").appending(path: "speakers")
@@ -280,6 +284,7 @@ struct FileTests {
 
             #expect(speakers.directoryName ==  "speakers")
 
+            #expect(schedules == nil)
 
             #expect(Set(speakers.components) == [
                 FileContent(fileName: "Sean MacLeod", fileType: .plainText, data: Data()),

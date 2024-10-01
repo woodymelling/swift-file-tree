@@ -4,7 +4,7 @@ import DependenciesMacros
 import UniformTypeIdentifiers
 
 @resultBuilder
-struct FileSystemBuilder {
+public struct FileTreeBuilder {
     public static func buildExpression<Content>(_ content: Content) -> Content where Content: FileSystemComponent {
         content
     }
@@ -18,36 +18,36 @@ struct FileSystemBuilder {
     }
 }
 
-protocol FileSystemComponent: Sendable {
+public protocol FileSystemComponent: Sendable {
     associatedtype FileType: Sendable
 
     func read(from url: URL) async throws -> FileType
 }
 
-struct TupleFileSystemComponent<each T: FileSystemComponent>: FileSystemComponent {
+public struct TupleFileSystemComponent<each T: FileSystemComponent>: FileSystemComponent {
     public var value: (repeat each T)
 
     @inlinable public init(_ value: repeat each T) {
         self.value = (repeat each value)
     }
 
-    typealias FileType = (repeat (each T).FileType)
+    public typealias FileType = (repeat (each T).FileType)
 
-    func read(from url: URL) async throws -> FileType {
+    public func read(from url: URL) async throws -> FileType {
         try await (repeat (each value).read(from: url))
     }
 }
 
-struct File: FileSystemComponent {
+public struct File: FileSystemComponent {
     let fileName: String
     let fileType: UTType
 
-    init(_ fileName: String, _ fileType: UTType) {
+    public init(_ fileName: String, _ fileType: UTType) {
         self.fileName = fileName
         self.fileType = fileType
     }
 
-    func read(from url: URL) async throws -> FileContent {
+    public func read(from url: URL) async throws -> FileContent {
         @Dependency(\.fileManagerClient) var fileManagerClient
         let fileUrl = url.appendingPathComponent(fileName, conformingTo: fileType)
 
@@ -59,16 +59,16 @@ struct File: FileSystemComponent {
     }
 }
 
-struct OptionalFile: FileSystemComponent {
+public struct OptionalFile: FileSystemComponent {
     let fileName: String
     let fileType: UTType
 
-    init(_ fileName: String, _ fileType: UTType) {
+    public init(_ fileName: String, _ fileType: UTType) {
         self.fileName = fileName
         self.fileType = fileType
     }
 
-    func read(from url: URL) async throws -> FileContent? {
+    public func read(from url: URL) async throws -> FileContent? {
         @Dependency(\.fileManagerClient) var fileManagerClient
         let fileURL = url.appendingPathComponent(fileName, conformingTo: fileType)
 
@@ -85,18 +85,18 @@ struct OptionalFile: FileSystemComponent {
 }
 
 
-struct Directory<Content: FileSystemComponent>: FileSystemComponent {
+public struct Directory<Content: FileSystemComponent>: FileSystemComponent {
     let path: String
 
     var content: Content
 
-    init(_ path: String, @FileSystemBuilder content: () -> Content) {
+    public init(_ path: String, @FileTreeBuilder content: () -> Content) {
         self.path = path
         self.content = content()
     }
 
     // This doesn't work because when Content.FileType is a tuple, we want DirectoryContents to have multiple types from that parameter pack
-    func read(from url: URL) async throws -> DirectoryContents<Content.FileType> {
+    public func read(from url: URL) async throws -> DirectoryContents<Content.FileType> {
         let directoryURL = url.appending(component: self.path)
         let x = try await content.read(from: directoryURL)
 
@@ -112,7 +112,7 @@ struct OptionalDirectory<Content: FileSystemComponent>: FileSystemComponent {
 
     var content: Content
 
-    init(_ path: String, @FileSystemBuilder content: () -> Content) {
+    init(_ path: String, @FileTreeBuilder content: () -> Content) {
         self.path = path
         self.content = content()
     }
@@ -135,7 +135,7 @@ struct OptionalDirectory<Content: FileSystemComponent>: FileSystemComponent {
 struct Many<Content: FileSystemComponent>: FileSystemComponent {
     var content: @Sendable (String) -> Content
 
-    init(@FileSystemBuilder _ content: @Sendable @escaping (String) -> Content) {
+    init(@FileTreeBuilder _ content: @Sendable @escaping (String) -> Content) {
         self.content = content
     }
 
@@ -167,43 +167,30 @@ struct Many<Content: FileSystemComponent>: FileSystemComponent {
 }
 
 // - MARK: Contents
-struct FileContent: Equatable, Hashable {
-    var fileName: String
-    var fileType: UTType
-    var data: Data
+public struct FileContent: Hashable, Sendable {
+    public var fileName: String
+    public var fileType: UTType
+    public var data: Data
+
+    public init(fileName: String, fileType: UTType, data: Data) {
+        self.fileName = fileName
+        self.fileType = fileType
+        self.data = data
+    }
 }
 
-struct DirectoryContents<T: Sendable>: Sendable {
-    var directoryName: String
-    var components: T
+public struct DirectoryContents<T: Sendable>: Sendable {
+    public var directoryName: String
+    public var components: T
 
-    init(directoryName: String, components: T) {
+    public init(directoryName: String, components: T) {
         self.directoryName = directoryName
         self.components = components
     }
 }
 
 extension DirectoryContents: Equatable where T: Equatable {}
-
-// - MARK: FileManageClient
-
-@DependencyClient
-struct FileManagerClient: Sendable {
-    var data: @Sendable (_ contentsOf: URL) async throws -> Data
-    var contentsOfDirectory: @Sendable (_ atPath: URL) throws -> [URL]
-    var fileExists: @Sendable (_ atPath: URL, _ isDirectory: Bool) -> Bool = { _, _ in false }
-}
-
-extension FileManagerClient: TestDependencyKey {
-    static let testValue: FileManagerClient = FileManagerClient()
-}
-
-extension DependencyValues {
-    var fileManagerClient: FileManagerClient {
-        get { self[FileManagerClient.self] }
-        set { self[FileManagerClient.self] = newValue }
-    }
-}
+extension DirectoryContents: Hashable where T: Hashable {}
 
 
 
