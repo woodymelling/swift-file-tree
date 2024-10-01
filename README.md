@@ -30,18 +30,18 @@ Here's a quick example of how to use FileTree:
 import FileTree
 
 let structure = Directory("documents") {
-    File("readme.md", .markdown)
+    File("readme", .plaintext)
     Directory("images") {
-        File("logo.png", .png)
+        Many { fileName in
+            File(fileName, .png)
+        }
     }
 }
 
 // Read the contents of the structure
-let contents = try await structure.read(from: URL.documentsDirectory)
+let (readme, images) = try await structure.read(from: URL.documentsDirectory).components
 
-// Access file contents
-let readmeContent = contents.components.0
-let logoContent = contents.components.1.components.0
+let images: [FileContent] = images.components.0
 ```
 
 ## Contributing
