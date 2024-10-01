@@ -18,7 +18,7 @@ Add the following to your `Package.swift` file:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/yourusername/FileTree.git", branch: "develop")
+    .package(url: "https://github.com/woodymelling/swift-file-tree", branch: "develop")
 ]
 ```
 
