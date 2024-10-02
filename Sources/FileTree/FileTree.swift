@@ -24,6 +24,21 @@ public protocol FileSystemComponent: Sendable {
     func read(from url: URL) async throws -> FileType
 }
 
+// MARK: FileTree
+public protocol FileTree: FileSystemComponent {
+    associatedtype Body: FileSystemComponent
+
+    @FileTreeBuilder
+    var body: Body { get }
+}
+
+extension FileTree {
+    public func read(from url: URL) async throws -> Body.FileType {
+        try await body.read(from: url)
+    }
+}
+
+
 public struct TupleFileSystemComponent<each T: FileSystemComponent>: FileSystemComponent {
     public var value: (repeat each T)
 
