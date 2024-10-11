@@ -5,41 +5,41 @@ import UniformTypeIdentifiers
 
 @resultBuilder
 public struct FileTreeBuilder {
-    public static func buildExpression<Content>(_ content: Content) -> Content where Content: FileSystemComponent {
+    public static func buildExpression<Content>(_ content: Content) -> Content where Content: FileTreeComponent {
         content
     }
 
-    public static func buildBlock<Content>(_ content: Content) -> Content where Content: FileSystemComponent {
+    public static func buildBlock<Content>(_ content: Content) -> Content where Content: FileTreeComponent {
         content
     }
 
-    public static func buildBlock<each Content>(_ content: repeat each Content) -> TupleFileSystemComponent<repeat each Content> where repeat each Content: FileSystemComponent {
+    public static func buildBlock<each Content>(_ content: repeat each Content) -> TupleFileSystemComponent<repeat each Content> where repeat each Content: FileTreeComponent {
         return TupleFileSystemComponent(repeat each content)
     }
 }
 
-public protocol FileSystemComponent: Sendable {
+public protocol FileTreeComponent: Sendable {
     associatedtype FileType: Sendable
 
     func read(from url: URL) async throws -> FileType
 }
 
-// MARK: FileTree
-public protocol FileTree: FileSystemComponent {
-    associatedtype Body: FileSystemComponent
+public struct FileTree<Content: FileTreeComponent>: FileTreeComponent {
 
-    @FileTreeBuilder
-    var body: Body { get }
-}
+    public var content: Content
+    public typealias FileType = Content.FileType
 
-extension FileTree {
-    public func read(from url: URL) async throws -> Body.FileType {
-        try await body.read(from: url)
+    public init(@FileTreeBuilder content: () -> Content) {
+        self.content = content()
+    }
+
+    public func read(from url: URL) async throws -> Content.FileType {
+        try await self.content.read(from: url)
     }
 }
 
 
-public struct TupleFileSystemComponent<each T: FileSystemComponent>: FileSystemComponent {
+public struct TupleFileSystemComponent<each T: FileTreeComponent>: FileTreeComponent {
     public var value: (repeat each T)
 
     @inlinable public init(_ value: repeat each T) {
@@ -53,7 +53,7 @@ public struct TupleFileSystemComponent<each T: FileSystemComponent>: FileSystemC
     }
 }
 
-public struct File: FileSystemComponent {
+public struct File: FileTreeComponent {
     let fileName: String
     let fileType: UTType
 
@@ -74,7 +74,7 @@ public struct File: FileSystemComponent {
     }
 }
 
-public struct OptionalFile: FileSystemComponent {
+public struct OptionalFile: FileTreeComponent {
     let fileName: String
     let fileType: UTType
 
@@ -87,7 +87,7 @@ public struct OptionalFile: FileSystemComponent {
         @Dependency(\.fileManagerClient) var fileManagerClient
         let fileURL = url.appendingPathComponent(fileName, conformingTo: fileType)
 
-        guard fileManagerClient.fileExists(atPath: fileURL, isDirectory: true)
+        guard fileManagerClient.fileExists(atPath: fileURL)
         else { return nil }
 
 
@@ -100,7 +100,7 @@ public struct OptionalFile: FileSystemComponent {
 }
 
 
-public struct Directory<Content: FileSystemComponent>: FileSystemComponent {
+public struct Directory<Content: FileTreeComponent>: FileTreeComponent {
     let path: String
 
     var content: Content
@@ -122,7 +122,7 @@ public struct Directory<Content: FileSystemComponent>: FileSystemComponent {
     }
 }
 
-public struct OptionalDirectory<Content: FileSystemComponent>: FileSystemComponent {
+public struct OptionalDirectory<Content: FileTreeComponent>: FileTreeComponent {
     let path: String
 
     var content: Content
@@ -137,7 +137,7 @@ public struct OptionalDirectory<Content: FileSystemComponent>: FileSystemCompone
         @Dependency(\.fileManagerClient) var fileManagerClient
 
         let directoryURL = url.appending(component: self.path)
-        guard fileManagerClient.fileExists(atPath: directoryURL, isDirectory: true)
+        guard fileManagerClient.fileExists(atPath: directoryURL)
         else { return nil }
 
         return try await DirectoryContents(
@@ -147,7 +147,7 @@ public struct OptionalDirectory<Content: FileSystemComponent>: FileSystemCompone
     }
 }
 
-public struct Many<Content: FileSystemComponent>: FileSystemComponent {
+public struct Many<Content: FileTreeComponent>: FileTreeComponent {
     var content: @Sendable (String) -> Content
 
     public init(@FileTreeBuilder _ content: @Sendable @escaping (String) -> Content) {

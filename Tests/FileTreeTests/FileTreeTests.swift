@@ -203,7 +203,8 @@ struct FileTreeTests {
         }
     }
 
-    @Test(.tags(.fileReading)) func realWorldStructure() async throws {
+    @Test(.tags(.fileReading))
+    func realWorldStructure() async throws {
 
         let eventURL = URL.documentsDirectory.appending(path: "2024")
         let speakersURL = URL.documentsDirectory.appending(path: "2024").appending(path: "speakers")
@@ -239,7 +240,7 @@ struct FileTreeTests {
                 }
             }
 
-            $0.fileManagerClient.fileExists = { @Sendable url, _ in
+            $0.fileManagerClient.fileExists = { @Sendable url in
                 switch url {
                 case eventURL.appending(path: "contact-info.yml"): return false
                 case speakersURL: return true

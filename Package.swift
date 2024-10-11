@@ -27,7 +27,13 @@ let package = Package(
         ),
         .testTarget(
             name: "FileTreeTests",
-            dependencies: ["FileTree"]
+            dependencies: [
+                "FileTree",
+                .product(name: "DependenciesTestSupport", package: "swift-dependencies")
+            ],
+            resources: [
+                .copy("Resources")
+            ]
         ),
     ]
 )

@@ -1,5 +1,5 @@
 {
-  "originHash" : "8b99c6010b331c492457e7e545c7b5917e9438ba9c4a6b7d55ab11cbf01c1ebc",
+  "originHash" : "f759c3b2c5513209a0afc314719d0e5acfa27ebccf4d5d95614b969ed52d7cc1",
   "pins" : [
     {
       "identity" : "combine-schedulers",
@@ -33,8 +33,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-dependencies",
       "state" : {
-        "revision" : "3ef38bb702a1a2f39c7e19fc0578403b8ee52b17",
-        "version" : "1.3.9"
+        "revision" : "0fc0255e780bf742abeef29dec80924f5f0ae7b9",
+        "version" : "1.4.1"
       }
     },
     {
@@ -51,8 +51,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/xctest-dynamic-overlay",
       "state" : {
-        "revision" : "96beb108a57f24c8476ae1f309239270772b2940",
-        "version" : "1.2.5"
+        "revision" : "27d767d643fa2cf083d0a73d74fa84cacb53e85c",
+        "version" : "1.4.1"
       }
     }
   ],
