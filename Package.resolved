@@ -1,5 +1,5 @@
 {
-  "originHash" : "f759c3b2c5513209a0afc314719d0e5acfa27ebccf4d5d95614b969ed52d7cc1",
+  "originHash" : "e9efb62d2f2cee22fe6677e4dda5976783143aff9e5618b1035a9ebb79ad2c42",
   "pins" : [
     {
       "identity" : "combine-schedulers",
@@ -8,6 +8,15 @@
       "state" : {
         "revision" : "9fa31f4403da54855f1e2aeaeff478f4f0e40b13",
         "version" : "1.0.2"
+      }
+    },
+    {
+      "identity" : "swift-case-paths",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-case-paths",
+      "state" : {
+        "revision" : "bc92c4b27f9a84bfb498cdbfdf35d5a357e9161f",
+        "version" : "1.5.6"
       }
     },
     {
@@ -35,6 +44,15 @@
       "state" : {
         "revision" : "0fc0255e780bf742abeef29dec80924f5f0ae7b9",
         "version" : "1.4.1"
+      }
+    },
+    {
+      "identity" : "swift-parsing",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/pointfreeco/swift-parsing",
+      "state" : {
+        "revision" : "a0e7d73f462c1c38c59dc40a3969ac40cea42950",
+        "version" : "0.13.0"
       }
     },
     {

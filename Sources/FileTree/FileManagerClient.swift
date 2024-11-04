@@ -12,15 +12,15 @@ import Foundation
 // - MARK: FileManageClient
 
 @DependencyClient
-struct FileManagerClient: Sendable {
-    var data: @Sendable (_ contentsOf: URL) async throws -> Data
-    var contentsOfDirectory: @Sendable (_ atPath: URL) throws -> [URL]
-    var fileExists: @Sendable (_ atPath: URL) -> Bool = { _ in false }
+public struct FileManagerClient: Sendable {
+    public var data: @Sendable (_ contentsOf: URL) async throws -> Data
+    public var contentsOfDirectory: @Sendable (_ atPath: URL) throws -> [URL]
+    public var fileExists: @Sendable (_ atPath: URL) -> Bool = { _ in false }
 }
 
 extension FileManagerClient: DependencyKey {
-    static let testValue: FileManagerClient = FileManagerClient()
-    static let liveValue: FileManagerClient = FileManagerClient(
+    public static let testValue: FileManagerClient = FileManagerClient()
+    public static let liveValue: FileManagerClient = FileManagerClient(
         data: {
             try Data(contentsOf: $0)
         },
@@ -34,7 +34,7 @@ extension FileManagerClient: DependencyKey {
 }
 
 extension DependencyValues {
-    var fileManagerClient: FileManagerClient {
+    public var fileManagerClient: FileManagerClient {
         get { self[FileManagerClient.self] }
         set { self[FileManagerClient.self] = newValue }
     }

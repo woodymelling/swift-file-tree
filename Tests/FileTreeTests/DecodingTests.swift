@@ -35,7 +35,6 @@ struct FileSystemTests {
         #expect(result.directoryName == "SimpleDirectory")
         #expect(result.components.data.utf8DecodedString == "This is some text\n")
         #expect(result.components.fileName == "FirstFile")
-        #expect(result.components.fileType == .plainText)
     }
 
     @Test
@@ -60,8 +59,12 @@ struct FileSystemTests {
     }
 
     @Test
-    func readMyEvent() async throws {
+    func readMarkdown() async throws {
+        let file = FileTree {
+            StaticFile("Markdown", "md")
+        }
 
+        let result = try await file.read(from: .resourcesFolder)
     }
 
 }

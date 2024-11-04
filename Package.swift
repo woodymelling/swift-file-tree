@@ -13,7 +13,8 @@ let package = Package(
             targets: ["FileTree"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.3.9")
+        .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.3.9"),
+        .package(url: "https://github.com/pointfreeco/swift-parsing", from: "0.13.0")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -22,7 +23,8 @@ let package = Package(
             name: "FileTree",
             dependencies: [
                 .product(name: "Dependencies", package: "swift-dependencies"),
-                .product(name: "DependenciesMacros", package: "swift-dependencies")
+                .product(name: "DependenciesMacros", package: "swift-dependencies"),
+                .product(name: "Parsing", package: "swift-parsing")
             ]
         ),
         .testTarget(

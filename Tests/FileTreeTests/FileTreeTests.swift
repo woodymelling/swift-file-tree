@@ -20,7 +20,7 @@ struct FileTreeTests {
             let result = try await File("test", .plainText)
                 .read(from: URL.applicationDirectory)
 
-            #expect(result == FileContent(fileName: "test", fileType: .plainText, data: Data()))
+            #expect(result == FileContent(fileName: "test", data: Data()))
         }
     }
 
@@ -41,7 +41,7 @@ struct FileTreeTests {
             #expect(
                 result == DirectoryContents(
                     directoryName: "dir",
-                    components: FileContent(fileName: "test", fileType: .plainText, data: Data())
+                    components: FileContent(fileName: "test", data: Data())
                 )
             )
         }
@@ -73,7 +73,7 @@ struct FileTreeTests {
                     directoryName: "dir",
                     components: DirectoryContents(
                         directoryName: "dir2",
-                        components: FileContent(fileName: "test", fileType: .plainText, data: Data())
+                        components: FileContent(fileName: "test", data: Data())
                     )
                 )
             )
@@ -102,8 +102,8 @@ struct FileTreeTests {
 
             #expect(
                 Set(result) == [
-                    FileContent(fileName: "file1", fileType: .plainText, data: Data()),
-                    FileContent(fileName: "file2", fileType: .plainText, data: Data()),
+                    FileContent(fileName: "file1", data: Data()),
+                    FileContent(fileName: "file2", data: Data()),
                 ]
             )
         }
@@ -138,9 +138,9 @@ struct FileTreeTests {
             let expected = DirectoryContents(
                 directoryName: "dir",
                 components: (
-                    FileContent(fileName: "test1", fileType: .plainText, data: Data()),
-                    FileContent(fileName: "test2", fileType: .plainText, data: Data()),
-                    FileContent(fileName: "test3", fileType: .plainText, data: Data())
+                    FileContent(fileName: "test1", data: Data()),
+                    FileContent(fileName: "test2", data: Data()),
+                    FileContent(fileName: "test3", data: Data())
 
                 )
             )
@@ -178,12 +178,12 @@ struct FileTreeTests {
             let expected = DirectoryContents(
                 directoryName: "dir",
                 components: (
-                    FileContent(fileName: "test1", fileType: .plainText, data: Data()),
+                    FileContent(fileName: "test1", data: Data()),
                     DirectoryContents(
                         directoryName: "child",
                         components: (
-                            FileContent(fileName: "test2", fileType: .plainText, data: Data()),
-                            FileContent(fileName: "test3", fileType: .plainText, data: Data())
+                            FileContent(fileName: "test2", data: Data()),
+                            FileContent(fileName: "test3", data: Data())
                         )
                     )
                 )
@@ -254,7 +254,7 @@ struct FileTreeTests {
             let structure = Directory("2024") {
                 File("event-info", .yaml)
 
-                OptionalFile("contact-info", .yaml)
+                File("contact-info", .yaml)
 
                 OptionalDirectory("schedules") {
                     Many {
@@ -276,7 +276,6 @@ struct FileTreeTests {
             #expect(
                 eventInfo == FileContent(
                     fileName: "event-info",
-                    fileType: .yaml,
                     data: "event-info".data(using: .utf8)!
                 )
             )
@@ -288,9 +287,9 @@ struct FileTreeTests {
             #expect(schedules == nil)
 
             #expect(Set(speakers.components) == [
-                FileContent(fileName: "Sean MacLeod", fileType: .plainText, data: Data()),
-                FileContent(fileName: "Lisa Hill", fileType: .plainText, data: Data()),
-                FileContent(fileName: "Stephanie Taylor", fileType: .plainText, data: Data()),
+                FileContent(fileName: "Sean MacLeod", data: Data()),
+                FileContent(fileName: "Lisa Hill", data: Data()),
+                FileContent(fileName: "Stephanie Taylor", data: Data()),
             ])
 
         }
