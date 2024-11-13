@@ -3,6 +3,7 @@ import Dependencies
 import DependenciesMacros
 import UniformTypeIdentifiers
 
+// MARK: Result Builder
 @resultBuilder
 public struct FileTreeBuilder {
     public static func buildExpression<Content>(_ content: Content) -> Content where Content: FileTreeComponent {
@@ -18,6 +19,7 @@ public struct FileTreeBuilder {
     }
 }
 
+// MARK: Protocol
 public protocol FileTreeComponent<FileType>: Sendable {
     associatedtype FileType: Sendable
 
@@ -25,8 +27,14 @@ public protocol FileTreeComponent<FileType>: Sendable {
 
     func read(from url: URL) async throws -> FileType
 
+    func write(_ data: FileType, to url: URL) async throws
+
     @FileTreeBuilder
     var body: Body { get }
+}
+
+public protocol StaticFileTreeComponent: FileTreeComponent {
+    var path: StaticString { get }
 }
 
 extension FileTreeComponent where Body == Never {
@@ -53,8 +61,11 @@ public struct FileTree<Content: FileTreeComponent>: FileTreeComponent {
     public func read(from url: URL) async throws -> Content.FileType {
         try await self.content.read(from: url)
     }
-}
 
+    public func write(_ data: Content.FileType, to url: URL) async throws {
+        try await self.content.write(data, to: url)
+    }
+}
 
 public struct TupleFileSystemComponent<each T: FileTreeComponent>: FileTreeComponent {
     public var value: (repeat each T)
@@ -68,66 +79,9 @@ public struct TupleFileSystemComponent<each T: FileTreeComponent>: FileTreeCompo
     public func read(from url: URL) async throws -> FileType {
         try await (repeat (each value).read(from: url))
     }
-}
 
-public struct Errors: Error, Equatable, Sequence {
-
-    var errors: [Error]
-
-    typealias Index = Error
-    public typealias Iterator = [Error].Iterator
-    public func makeIterator() -> Array<any Error>.Iterator {
-        errors.makeIterator()
-    }
-
-    public init?(_ errors: [Error]) {
-        guard !errors.isEmpty
-        else { return nil }
-
-        self.errors = errors
-    }
-
-    public init?(_ sequence: Error...) {
-        guard !sequence.isEmpty
-        else { return nil }
-
-        self.errors = sequence
-    }
-
-
-    public static func == (lhs: Self, rhs: Self) -> Bool {
-        guard lhs.errors.count == rhs.errors.count else {
-            return false
-        }
-
-        for (leftError, rightError) in zip(lhs.errors, rhs.errors) {
-            if let leftEquatableError = leftError as? any Equatable,
-               let rightEquatableError = rightError as? any Equatable {
-                // If they are both equatable but not equal, return false
-                if !leftEquatableError.isEqual(to: rightEquatableError) {
-                    return false
-                }
-            }
-        }
-
-        return true
-    }
-
-    
-
-
-}
-
-private extension Equatable {
-    // Helper to safely compare any two Equatable instances
-    func isEqual(to other: any Equatable) -> Bool {
-        self == (other as? Self)
-    }
-}
-
-extension Conversion {
-    static var id: Conversions.Identity<Input> {
-        Conversions.Identity<Input>()
+    public func write(_ data: (repeat (each T).FileType), to url: URL) async throws {
+        try await (repeat (each value).write((each data), to: url))
     }
 }
 
@@ -155,7 +109,7 @@ extension URL {
     }
 }
 
-
+// MARK: - File
 public struct StaticFile: FileTreeComponent {
     let fileName: StaticString
     let fileType: FileType
@@ -175,6 +129,13 @@ public struct StaticFile: FileTreeComponent {
         let fileUrl = url.appendingPathComponent(fileName.description, withType: fileType)
 
         return try await fileManagerClient.data(contentsOf: fileUrl)
+    }
+
+    public func write(_ data: Data, to url: URL) async throws {
+        @Dependency(\.fileManagerClient) var fileManagerClient
+        let fileUrl = url.appendingPathComponent(fileName.description, withType: fileType)
+
+        return try fileManagerClient.writeData(data: data, to: fileUrl)
     }
 }
 
@@ -201,59 +162,18 @@ public struct File: FileTreeComponent {
             data: fileManagerClient.data(contentsOf: fileUrl)
         )
     }
-}
 
-public struct OptionalFile: FileTreeComponent {
-    let fileName: String
-    let fileType: FileType
-
-    public init(_ fileName: String, _ fileType: FileType) {
-        self.fileName = fileName
-        self.fileType = fileType
-    }
-
-    public init(_ fileName: String, _ fileType: FileExtension) {
-        self.fileName = fileName
-        self.fileType = .extension(fileType)
-    }
-
-    public func read(from url: URL) async throws -> FileContent<Data>? {
+    public func write(_ fileContent: FileContent<Data>, to url: URL) async throws {
         @Dependency(\.fileManagerClient) var fileManagerClient
-        let fileURL = url.appendingPathComponent(fileName, withType: fileType)
+        let fileURL = url.appendingPathComponent(fileContent.fileName, withType: fileType)
 
-        guard fileManagerClient.fileExists(atPath: fileURL)
-        else { return nil }
+        try fileManagerClient.writeData(data: fileContent.data, to: fileURL)
 
-
-        return try await FileContent(
-            fileName: self.fileName,
-            data: fileManagerClient.data(contentsOf: fileURL)
-        )
     }
 }
 
 
-public struct Directory<Content: FileTreeComponent>: FileTreeComponent {
-    let path: String
-
-    var content: Content
-
-    public init(_ path: String, @FileTreeBuilder content: () -> Content) {
-        self.path = path
-        self.content = content()
-    }
-
-    // This doesn't work because when Content.FileType is a tuple, we want DirectoryContents to have multiple types from that parameter pack
-    public func read(from url: URL) async throws -> DirectoryContents<Content.FileType> {
-        let directoryURL = url.appending(component: self.path)
-        let x = try await content.read(from: directoryURL)
-
-        return DirectoryContents(
-            directoryName: self.path,
-            components: x
-        )
-    }
-}
+// MARK: - Directory
 
 public struct StaticDirectory<Content: FileTreeComponent>: FileTreeComponent {
     let path: StaticString
@@ -269,9 +189,20 @@ public struct StaticDirectory<Content: FileTreeComponent>: FileTreeComponent {
 
         return try await content.read(from: directoryURL)
     }
+
+    public func write(_ data: Content.FileType, to url: URL) async throws {
+        @Dependency(\.fileManagerClient) var fileManagerClient
+        let directoryPath = url.appending(component: path.description)
+
+        if !fileManagerClient.fileExists(atPath: directoryPath) {
+            try fileManagerClient.createDirectory(at: directoryPath, withIntermediateDirectories: false)
+        }
+
+        try await content.write(data, to: directoryPath)
+    }
 }
 
-public struct OptionalDirectory<Content: FileTreeComponent>: FileTreeComponent {
+public struct Directory<Content: FileTreeComponent>: FileTreeComponent {
     let path: String
 
     var content: Content
@@ -282,18 +213,25 @@ public struct OptionalDirectory<Content: FileTreeComponent>: FileTreeComponent {
     }
 
     // This doesn't work because when Content.FileType is a tuple, we want DirectoryContents to have multiple types from that parameter pack
-    public func read(from url: URL) async throws -> DirectoryContents<Content.FileType>? {
-        @Dependency(\.fileManagerClient) var fileManagerClient
-
+    public func read(from url: URL) async throws -> DirectoryContents<Content.FileType> {
         let directoryURL = url.appending(component: self.path)
-        guard fileManagerClient.fileExists(atPath: directoryURL)
-        else { return nil }
+        let compoents = try await content.read(from: directoryURL)
 
-        return try await DirectoryContents(
+        return DirectoryContents(
             directoryName: self.path,
-            components: content.read(from: directoryURL)
+            components: compoents
         )
     }
+
+    public func write(_ directoryContents: DirectoryContents<Content.FileType>, to url: URL) async throws {
+        @Dependency(\.fileManagerClient) var fileManagerClient
+        let directoryPath = url.appending(component: path.description)
+
+        try fileManagerClient.createDirectory(at: directoryPath, withIntermediateDirectories: false)
+
+        try await content.write(directoryContents.components, to: directoryPath)
+    }
+
 }
 
 public struct Many<Content: FileTreeComponent>: FileTreeComponent {
@@ -327,6 +265,16 @@ public struct Many<Content: FileTreeComponent>: FileTreeComponent {
 
             return results
         }
+    }
+
+    public func write(_ data: [Content.FileType], to url: URL) async throws {
+        @Dependency(\.fileManagerClient) var fileManagerClient
+
+        // Diff the current and the old, and if theres changes, write those changes to the file system
+        // This is difficult because there's dynamic content involved here.
+        // I think I may need to use some sort of system where I generate the data into a temp directory,
+        // Diff the new contents with the old contents, and
+
     }
 }
 
@@ -366,64 +314,4 @@ public struct DirectoryContents<T: Sendable>: Sendable {
 
 extension DirectoryContents: Equatable where T: Equatable {}
 extension DirectoryContents: Hashable where T: Hashable {}
-
-import Parsing
-
-public struct Map<Upstream: FileTreeComponent, NewOutput: Sendable>: FileTreeComponent {
-    public let upstream: Upstream
-    public let transform: @Sendable (Upstream.FileType) throws -> NewOutput
-
-    public func read(from url: URL) async throws -> NewOutput {
-        try await self.transform(upstream.read(from: url))
-    }
-}
-
-import Parsing
-
-public struct MapConversionComponent<Upstream: FileTreeComponent, Downstream: AsyncConversion & Sendable>: FileTreeComponent
-where Downstream.Input == Upstream.FileType, Downstream.Output: Sendable {
-    public let upstream: Upstream
-    public let downstream: Downstream
-
-    @inlinable
-    public init(upstream: Upstream, downstream: Downstream) {
-        self.upstream = upstream
-        self.downstream = downstream
-    }
-
-    @inlinable
-    @inline(__always)
-    public func read(from url: URL) async throws -> Downstream.Output {
-        try await self.downstream.apply(upstream.read(from: url))
-    }
-//
-//    @inlinable
-//    public func print(_ output: Downstream.Output, into input: inout Upstream.Input) rethrows {
-//        try self.upstream.print(self.downstream.unapply(output), into: &input)
-//    }
-}
-
-extension FileTreeComponent {
-    public func map<NewOutput>(
-        _ transform: @escaping @Sendable (FileType) throws -> NewOutput
-    ) -> Map<Self, NewOutput> {
-        .init(upstream: self, transform: transform)
-    }
-
-    @inlinable
-    public func map<C>(_ conversion: C) -> MapConversionComponent<Self, C> {
-        .init(upstream: self, downstream: conversion)
-    }
-
-    /*
-     StaticFile("blah", "yaml")
-        .map {
-            DataToString<Data, String>()
-         }
-     */
-
-    public func map<C>(@ConversionBuilder build: () -> C) -> MapConversionComponent<Self, C> {
-        self.map(build())
-    }
-}
 

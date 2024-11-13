@@ -6,6 +6,7 @@
 //
 
 import Parsing
+import Foundation
 
 /**
  FileContentConversion {
@@ -37,3 +38,49 @@ public struct FileContentConversion<AppliedConversion: Conversion>: Conversion {
 
 extension FileContentConversion: Sendable where AppliedConversion: Sendable {}
 
+
+public struct Map<Upstream: FileTreeComponent, NewOutput: Sendable>: FileTreeComponent {
+    public let upstream: Upstream
+    public let transform: @Sendable (Upstream.FileType) throws -> NewOutput
+
+    public func read(from url: URL) async throws -> NewOutput {
+        try await self.transform(upstream.read(from: url))
+    }
+}
+
+import Parsing
+
+public struct MapConversionComponent<Upstream: FileTreeComponent, Downstream: AsyncConversion & Sendable>: FileTreeComponent
+where Downstream.Input == Upstream.FileType, Downstream.Output: Sendable {
+    public let upstream: Upstream
+    public let downstream: Downstream
+
+    @inlinable
+    public init(upstream: Upstream, downstream: Downstream) {
+        self.upstream = upstream
+        self.downstream = downstream
+    }
+
+    @inlinable
+    @inline(__always)
+    public func read(from url: URL) async throws -> Downstream.Output {
+        try await self.downstream.apply(upstream.read(from: url))
+    }
+}
+
+extension FileTreeComponent {
+    public func map<NewOutput>(
+        _ transform: @escaping @Sendable (FileType) throws -> NewOutput
+    ) -> Map<Self, NewOutput> {
+        .init(upstream: self, transform: transform)
+    }
+
+    @inlinable
+    public func map<C>(_ conversion: C) -> MapConversionComponent<Self, C> {
+        .init(upstream: self, downstream: conversion)
+    }
+
+    public func map<C>(@ConversionBuilder build: () -> C) -> MapConversionComponent<Self, C> {
+        self.map(build())
+    }
+}
