@@ -74,16 +74,16 @@ extension StaticDirectory: FileTreeViewable where Content: FileTreeViewable {
 }
 
 
-struct FileTreeView<FileTree: FileTreeViewable>: View {
-    init(for value: FileTree.FileType, using fileTree: FileTree) {
+public struct FileTreeView<FileTree: FileTreeViewable>: View {
+    public init(for value: FileTree.FileType, using fileTree: FileTree) {
         self.value = value
         self.fileTree = fileTree
     }
 
-    var value: FileTree.FileType
-    var fileTree: FileTree
+    public var value: FileTree.FileType
+    public var fileTree: FileTree
 
-    var body: some View {
+    public var body: some View {
         fileTree.view(for: value)
     }
 }
