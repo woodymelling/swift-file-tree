@@ -33,6 +33,7 @@ public protocol FileTreeComponent<FileType>: Sendable {
     var body: Body { get }
 }
 
+
 public protocol StaticFileTreeComponent: FileTreeComponent {
     var path: StaticString { get }
 }
@@ -47,7 +48,18 @@ extension FileTreeComponent where Body: FileTreeComponent, Body.FileType == File
     public func read(from url: URL) async throws -> FileType {
         try await body.read(from: url)
     }
+
+    public func write(_ data: FileType, to url: URL) async throws {
+        try await body.write(data, to: url)
+    }
 }
+
+import SwiftUI
+//extension FileTreeComponent where ViewBody == Never {
+//    public var view: ViewBody {
+//        return fatalError("Body of \(Self.self) should never be called")
+//    }
+//}
 
 public struct FileTree<Content: FileTreeComponent>: FileTreeComponent {
 
@@ -66,6 +78,8 @@ public struct FileTree<Content: FileTreeComponent>: FileTreeComponent {
         try await self.content.write(data, to: url)
     }
 }
+
+
 
 public struct TupleFileSystemComponent<each T: FileTreeComponent>: FileTreeComponent {
     public var value: (repeat each T)

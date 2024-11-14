@@ -5,7 +5,7 @@ import PackageDescription
 
 let package = Package(
     name: "swift-file-tree",
-    platforms: [.macOS(.v14)],
+    platforms: [.macOS(.v14), .iOS(.v18)],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
@@ -14,7 +14,7 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.3.9"),
-        .package(url: "https://github.com/pointfreeco/swift-parsing", from: "0.13.0")
+        .package(url: "https://github.com/woodymelling/swift-parsing", branch: "async-parsing")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
