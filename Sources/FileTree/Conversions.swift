@@ -53,9 +53,10 @@ extension FileContentConversion: Sendable where AppliedConversion: Sendable {}
 //}
 
 import Parsing
+import SwiftUI
 
 public struct MapConversionComponent<Upstream: FileTreeComponent, Downstream: AsyncConversion & Sendable>: FileTreeComponent
-where Downstream.Input == Upstream.FileType, Downstream.Output: Sendable {
+where Downstream.Input == Upstream.FileType, Downstream.Output: Sendable & Equatable {
     public let upstream: Upstream
     public let downstream: Downstream
 
@@ -73,6 +74,45 @@ where Downstream.Input == Upstream.FileType, Downstream.Output: Sendable {
 
     public func write(_ data: Downstream.Output, to url: URL) async throws {
         try await self.upstream.write(downstream.unapply(data), to: url)
+    }
+
+    public func view(for fileType: Downstream.Output) -> some View {
+        ConversionView(
+            downStreamUnapply: downstream.unapply,
+            value: fileType
+        )
+    }
+
+
+    struct ConversionView: View {
+        @State var result: Result<Upstream.FileType, Error>?
+
+        var downStreamUnapply: @Sendable (Downstream.Output) async throws -> Upstream.FileType
+        var value: Downstream.Output
+
+        var body: some View {
+            Group {
+                Text("HELLO WORLD")
+            }
+            .onChange(of: value) { _, newValue in
+                Task { @MainActor in
+                    result = await Result(sendable: {
+                        try await downStreamUnapply(newValue)
+                    })
+                }
+
+            }
+        }
+    }
+}
+
+extension Result where Self: Sendable {
+    init(sendable operation: @Sendable () async throws(Failure) -> Success) async {
+        do {
+            self = try await .success(operation())
+        } catch {
+            self = .failure(error)
+        }
     }
 }
 
