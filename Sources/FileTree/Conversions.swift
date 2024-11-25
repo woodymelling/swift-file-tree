@@ -5,7 +5,7 @@
 //  Created by Woodrow Melling on 10/23/24.
 //
 
-import Parsing
+import Conversions
 import Foundation
 
 /**
@@ -52,7 +52,7 @@ extension FileContentConversion: Sendable where AppliedConversion: Sendable {}
 //    }
 //}
 
-import Parsing
+import Conversions
 import SwiftUI
 
 public struct MapConversionComponent<Upstream: FileTreeComponent, Downstream: AsyncConversion & Sendable>: FileTreeComponent

@@ -480,7 +480,7 @@ public struct FileTreeView<FileTree: FileTreeViewable>: View {
     }
 }
 
-@preconcurrency import Parsing
+import Conversions
 
 extension FileTreeViewable where Body: FileTreeViewable, ViewBody == Body.ViewBody, Body.FileType == FileType {
     @MainActor

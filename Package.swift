@@ -24,7 +24,7 @@ let package = Package(
             dependencies: [
                 .product(name: "Dependencies", package: "swift-dependencies"),
                 .product(name: "DependenciesMacros", package: "swift-dependencies"),
-                .product(name: "Parsing", package: "swift-parsing")
+                .product(name: "Conversions", package: "swift-parsing")
             ]
         ),
         .testTarget(
