@@ -34,6 +34,37 @@ struct DefaultFileStyle: FileStyle {
     }
 }
 
+struct FileView: View {
+    @Environment(\.fileStyle) var fileStyle
+    @Environment(\.fileTreeSearchText) var searchText
+
+    var fileName: String
+    var fileType: FileType
+    var searchItems: Set<String>
+
+    var containsSearchTerm: Bool {
+        searchItems.contains(where: {
+            $0.range(of: searchText, options: .caseInsensitive) != nil
+        }) 
+    }
+
+    var body: some View {
+        if searchText.isEmpty || containsSearchTerm {
+            AnyView(
+                fileStyle.makeBody(
+                    configuration: FileStyleConfiguration(
+                        fileName: self.fileName,
+                        fileExtension: self.fileType,
+                        isLoading: false
+                    )
+                )
+            )
+        } else {
+            EmptyView()
+        }
+    }
+}
+
 extension EnvironmentValues {
     @Entry var fileStyle: any FileStyle = DefaultFileStyle()
 }
@@ -50,17 +81,12 @@ protocol DirectoryStyle {
 
 public struct DirectoryStyleConfiguration {
     let path: String
-    let content: any View
 }
 
 struct DefaultDirectoryStyle: DirectoryStyle {
 
     func makeBody(configuration: Configuration) -> some View {
-        DisclosureGroup {
-            AnyView(configuration.content)
-        } label: {
-            Label(configuration.path, systemImage: "folder")
-        }
+        Label(configuration.path, systemImage: "folder")
     }
 }
 

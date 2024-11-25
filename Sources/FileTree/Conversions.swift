@@ -76,10 +76,16 @@ where Downstream.Input == Upstream.FileType, Downstream.Output: Sendable & Equat
         try await self.upstream.write(downstream.unapply(data), to: url)
     }
 
-    public func view(for fileType: Downstream.Output) -> some View {
+
+
+}
+
+extension MapConversionComponent: FileTreeViewable where Upstream: FileTreeViewable {
+    public func view(for value: Downstream.Output) -> some View {
         ConversionView(
+            upstream: upstream,
             downStreamUnapply: downstream.unapply,
-            value: fileType
+            value: value
         )
     }
 
@@ -87,14 +93,27 @@ where Downstream.Input == Upstream.FileType, Downstream.Output: Sendable & Equat
     struct ConversionView: View {
         @State var result: Result<Upstream.FileType, Error>?
 
+        var upstream: Upstream
         var downStreamUnapply: @Sendable (Downstream.Output) async throws -> Upstream.FileType
         var value: Downstream.Output
 
         var body: some View {
             Group {
-                Text("HELLO WORLD")
+                if let result {
+                    switch result {
+                    case .success(let success):
+                        upstream.view(for: success)
+                    case .failure(let failure):
+                        Text("ERROR")
+                            .onAppear {
+                                print(failure)
+                            }
+                    }
+                } else {
+                    Text("Loading...")
+                }
             }
-            .onChange(of: value) { _, newValue in
+            .onChange(of: value, initial: true) { _, newValue in
                 Task { @MainActor in
                     result = await Result(sendable: {
                         try await downStreamUnapply(newValue)

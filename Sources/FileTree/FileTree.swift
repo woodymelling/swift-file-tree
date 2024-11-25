@@ -24,7 +24,7 @@ public protocol FileTreeComponent<FileType>: Sendable {
     associatedtype FileType: Sendable
 
     associatedtype Body
-    associatedtype ViewBody: View
+//    associatedtype ViewBody: View
 
     func read(from url: URL) async throws -> FileType
 
@@ -32,6 +32,14 @@ public protocol FileTreeComponent<FileType>: Sendable {
 
     @FileTreeBuilder
     var body: Body { get }
+//
+//    @ViewBuilder
+//    @MainActor
+//    func view(for fileType: FileType) -> ViewBody
+}
+
+public protocol FileTreeViewable: FileTreeComponent {
+    associatedtype ViewBody: View
 
     @ViewBuilder
     @MainActor
@@ -58,13 +66,6 @@ extension FileTreeComponent where Body: FileTreeComponent, Body.FileType == File
         try await body.write(data, to: url)
     }
 
-}
-
-extension FileTreeComponent where Body: FileTreeComponent, ViewBody == Body.ViewBody, Body.FileType == FileType {
-    @MainActor
-    func view(for fileType: FileType) -> Body.ViewBody {
-        self.body.view(for: fileType)
-    }
 }
 
 
@@ -303,8 +304,16 @@ public struct Many<Content: FileTreeComponent>: FileTreeComponent {
 
     }
 
-    public func view(for fileType: [Content.FileType]) -> some View {
-        fatalError("UNIMPLEMENTED")
+
+}
+
+extension Many: FileTreeViewable where Content: FileTreeViewable, Content.FileType: Identifiable, Content.FileType.ID: CustomStringConvertible {
+    public func view(for values: [Content.FileType]) -> some View {
+        ForEach(values) { value in
+            let idString = value.id.description
+            let contentInstance = content(idString)
+            contentInstance.view(for: value)
+        }
     }
 }
 
@@ -348,51 +357,37 @@ extension DirectoryContents: Hashable where T: Hashable {}
 
 // MARK: FileTree + SwiftUI
 
+extension StaticFile: FileTreeViewable {
 
-
-extension StaticFile {
-    @MainActor
     public func view(for fileType: Data) -> some View {
-        @Environment(\.fileStyle) var fileStyle
         return AnyView(
-            fileStyle.makeBody(
-                configuration: FileStyleConfiguration(
-                    fileName: self.fileName.description,
-                    fileExtension: self.fileType,
-                    isLoading: false
-                )
+            FileView(
+                fileName: self.fileName.description,
+                fileType: self.fileType,
+                searchItems: [fileName.description]
             )
         )
     }
 }
 
-
-
-extension File {
-
-    @MainActor
+extension File: FileTreeViewable {
     public func view(for content: FileContent<Data>) -> some View {
-        @Environment(\.fileStyle) var fileStyle
-        return AnyView(
-            fileStyle.makeBody(
-                configuration: FileStyleConfiguration(
-                    fileName: content.fileName,
-                    fileExtension: self.fileType,
-                    isLoading: false
-                )
-            )
+        FileView(
+            fileName: content.fileName,
+            fileType: self.fileType,
+            searchItems: [self.fileName]
         )
     }
 }
 
-extension FileTree {
+extension FileTree: FileTreeViewable where Content: FileTreeViewable {
     @MainActor
     public func view(for fileType: FileType) -> some View {
         content.view(for: fileType)
     }
 }
 
-extension TupleFileSystemComponent {
+extension TupleFileSystemComponent: FileTreeViewable where repeat (each T): FileTreeViewable {
 
     @MainActor
     public func view(for fileType: (repeat (each T).FileType)) -> some
@@ -402,36 +397,76 @@ extension TupleFileSystemComponent {
 }
 
 
-extension Directory {
-    @MainActor
+extension Directory: FileTreeViewable where Content: FileTreeViewable {
     public func view(for fileType: DirectoryContents<Content.FileType>) -> some View {
-        @Environment(\.directoryStyle) var directoryStyle
-
-        return AnyView(directoryStyle.makeBody(
-            configuration: DirectoryStyleConfiguration(
-                path: self.path,
-                content: content.view(for: fileType.components)
-            )
-        ))
+        DirectoryView(
+            name: self.path,
+            data: fileType.components,
+            content: self.content,
+            searchItems: [self.path]
+        )
     }
 }
 
-extension StaticDirectory {
-    @MainActor
+extension StaticDirectory: FileTreeViewable where Content: FileTreeViewable {
     public func view(for fileType: Content.FileType) -> some View {
-        @Environment(\.directoryStyle) var directoryStyle
+        DirectoryView(
+            name: self.path.description,
+            data: fileType,
+            content: self.content,
+            searchItems: [self.path.description]
+        )
+    }
+}
 
-        return AnyView(directoryStyle.makeBody(
-            configuration: DirectoryStyleConfiguration(
-                path: self.path.description,
-                content: content.view(for: fileType)
-            )
-        ))
+struct DirectoryView<F: FileTreeViewable>: View {
+    @Environment(\.directoryStyle) var directoryStyle
+    @Environment(\.fileTreeSearchText) var searchText
+
+    var name: String
+
+    var data: F.FileType
+    var searchItems: Set<String>
+
+    var subContent: F.ViewBody
+
+    init(
+        name: String,
+        data: F.FileType,
+        content: F,
+        searchItems: Set<String>
+    ) {
+
+        self.name = name
+        self.data = data
+        self.searchItems = searchItems
+
+        self.subContent = content.view(for: data)
+    }
+
+    var body: some View {
+        Group(subviews: subContent) { subviews in
+            if !subviews.isEmpty {
+
+                DisclosureGroup {
+                    subContent
+                } label: {
+                    AnyView(directoryStyle.makeBody(
+                        configuration: DirectoryStyleConfiguration(
+                            path: name
+                        )
+                    ))
+                }
+            }
+        }
+
     }
 }
 
 
-public struct FileTreeView<FileTree: FileTreeComponent>: View {
+
+
+public struct FileTreeView<FileTree: FileTreeViewable>: View {
     public init(for value: FileTree.FileType, using fileTree: FileTree) {
         self.value = value
         self.fileTree = fileTree
@@ -447,15 +482,80 @@ public struct FileTreeView<FileTree: FileTreeComponent>: View {
 
 @preconcurrency import Parsing
 
-struct PreviewFileTree: FileTreeComponent {
-    
-    var body: some FileTreeComponent<(Data, Data)> {
+extension FileTreeViewable where Body: FileTreeViewable, ViewBody == Body.ViewBody, Body.FileType == FileType {
+    @MainActor
+    public func view(for fileType: FileType) -> Body.ViewBody {
+        self.body.view(for: fileType)
+    }
+}
+
+public struct _TaggedFileTreeComponent<
+    Child: FileTreeViewable,
+    Tag: Hashable & Sendable
+>: FileTreeViewable {
+    public var fileTree: Child
+    public var tag: @Sendable (Child.FileType) -> Tag
+
+    public typealias FileType = Child.FileType
+
+    @inlinable
+    public func read(from url: URL) async throws -> Child.FileType {
+        try await fileTree.read(from: url)
+    }
+
+    @inlinable
+    public func write(_ data: Child.FileType, to url: URL) async throws {
+        try await fileTree.write(data, to: url)
+    }
+
+    @inlinable
+    public func view(for fileType: FileType) -> some View {
+        self.fileTree
+            .view(for: fileType)
+            .tag(tag(fileType))
+    }
+}
+
+
+extension FileTreeViewable {
+    public func tag<T: Hashable>(_ tag: T) -> _TaggedFileTreeComponent<Self, T> {
+        _TaggedFileTreeComponent(fileTree: self, tag: { _ in tag })
+    }
+}
+
+extension FileTreeViewable where FileType: Identifiable {
+    public func tag<T: Hashable>(transformID: @Sendable @escaping (FileType.ID) -> T) -> _TaggedFileTreeComponent<Self, T> {
+        _TaggedFileTreeComponent(fileTree: self, tag: { transformID($0.id) })
+    }
+
+    public func taggedByID() -> _TaggedFileTreeComponent<Self, FileType.ID> where FileType.ID: Sendable {
+        _TaggedFileTreeComponent(fileTree: self, tag: { $0.id })
+    }
+}
+
+extension Never: FileTreeComponent {
+    public typealias FileType = Never
+}
+
+struct PreviewFileTree: FileTreeViewable {
+
+    enum Tag {
+        case info
+        case otherInfo
+    }
+
+    var body: some FileTreeComponent<(Data, Data)> & FileTreeViewable {
         StaticDirectory("Dir") {
             StaticFile("Info", "text")
+                .tag(Tag.info)
+
             StaticFile("OtherInfo", "text")
+                .tag(Tag.otherInfo)
         }
     }
 }
+
+
 
 
 private struct Content: View {
@@ -467,15 +567,41 @@ private struct Content: View {
     }
 }
 
+extension FileTreeViewable {
+    @MainActor
+    public func view(for fileType: FileType, filteringFor searchText: String) -> some View {
+        self.view(for: fileType)
+            .environment(\.fileTreeSearchText, searchText)
+    }
+}
 
+extension EnvironmentValues {
+    @Entry var fileTreeSearchText: String = ""
+}
 
 
 #Preview {
+    @Previewable @State var selection: PreviewFileTree.Tag?
+
     NavigationSplitView {
-        List {
+        List(selection: $selection) {
             Content()
         }
+        .contextMenu(forSelectionType: PreviewFileTree.Tag.self) { selections in
+            Button("Click") {
+                print("Clieck", selections)
+            }
+        } primaryAction: { selections in
+            print("PRIMARY ACTION:", selections)
+        }
     } detail: {
-        Text("Content")
+        switch selection {
+        case .info:
+            Text("Info")
+        case .otherInfo:
+            Text("OTHER INFO")
+        case nil:
+            Text("None Selected")
+        }
     }
 }
