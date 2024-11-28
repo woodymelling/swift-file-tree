@@ -12,7 +12,7 @@ import Foundation
 // - MARK: FileManageClient
 @DependencyClient
 public struct FileManagerClient: Sendable {
-    public var data: @Sendable (_ contentsOf: URL) async throws -> Data
+    public var data: @Sendable (_ contentsOf: URL) throws -> Data
     public var contentsOfDirectory: @Sendable (_ atPath: URL) throws -> [URL]
     public var fileExists: @Sendable (_ atPath: URL) -> Bool = { _ in false }
     public var writeData: @Sendable (_ data: Data, _ to: URL) throws -> Void
