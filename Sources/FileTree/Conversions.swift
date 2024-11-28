@@ -55,7 +55,7 @@ extension FileContentConversion: Sendable where AppliedConversion: Sendable {}
 import Conversions
 import SwiftUI
 
-public struct MapConversionComponent<Upstream: FileTreeComponent, Downstream: AsyncConversion & Sendable>: FileTreeComponent
+public struct MapConversionComponent<Upstream: FileTreeComponent, Downstream: Conversion & Sendable>: FileTreeComponent
 where Downstream.Input == Upstream.FileType, Downstream.Output: Sendable & Equatable {
     public let upstream: Upstream
     public let downstream: Downstream
@@ -68,12 +68,12 @@ where Downstream.Input == Upstream.FileType, Downstream.Output: Sendable & Equat
 
     @inlinable
     @inline(__always)
-    public func read(from url: URL) async throws -> Downstream.Output {
-        try await self.downstream.apply(upstream.read(from: url))
+    public func read(from url: URL) throws -> Downstream.Output {
+        try self.downstream.apply(upstream.read(from: url))
     }
 
-    public func write(_ data: Downstream.Output, to url: URL) async throws {
-        try await self.upstream.write(downstream.unapply(data), to: url)
+    public func write(_ data: Downstream.Output, to url: URL) throws {
+        try self.upstream.write(downstream.unapply(data), to: url)
     }
 
 

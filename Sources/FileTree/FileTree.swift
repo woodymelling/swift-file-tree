@@ -26,9 +26,9 @@ public protocol FileTreeComponent<FileType>: Sendable {
     associatedtype Body
 //    associatedtype ViewBody: View
 
-    func read(from url: URL) async throws -> FileType
+    func read(from url: URL) throws -> FileType
 
-    func write(_ data: FileType, to url: URL) async throws
+    func write(_ data: FileType, to url: URL) throws
 
     @FileTreeBuilder
     var body: Body { get }
@@ -58,12 +58,12 @@ extension FileTreeComponent where Body == Never {
 }
 
 extension FileTreeComponent where Body: FileTreeComponent, Body.FileType == FileType {
-    public func read(from url: URL) async throws -> FileType {
-        try await body.read(from: url)
+    public func read(from url: URL) throws -> FileType {
+        try body.read(from: url)
     }
 
-    public func write(_ data: FileType, to url: URL) async throws {
-        try await body.write(data, to: url)
+    public func write(_ data: FileType, to url: URL) throws {
+        try body.write(data, to: url)
     }
 
 }
@@ -85,12 +85,12 @@ public struct FileTree<Content: FileTreeComponent>: FileTreeComponent {
         self.content = content()
     }
 
-    public func read(from url: URL) async throws -> Content.FileType {
-        try await self.content.read(from: url)
+    public func read(from url: URL) throws -> Content.FileType {
+        try self.content.read(from: url)
     }
 
-    public func write(_ data: Content.FileType, to url: URL) async throws {
-        try await self.content.write(data, to: url)
+    public func write(_ data: Content.FileType, to url: URL) throws {
+        try self.content.write(data, to: url)
     }
 }
 
@@ -103,12 +103,12 @@ public struct TupleFileSystemComponent<each T: FileTreeComponent>: FileTreeCompo
 
     public typealias FileType = (repeat (each T).FileType)
 
-    public func read(from url: URL) async throws -> FileType {
-        try await (repeat (each value).read(from: url))
+    public func read(from url: URL) throws -> FileType {
+        try (repeat (each value).read(from: url))
     }
 
-    public func write(_ data: (repeat (each T).FileType), to url: URL) async throws {
-        try await (repeat (each value).write((each data), to: url))
+    public func write(_ data: (repeat (each T).FileType), to url: URL) throws {
+        try (repeat (each value).write((each data), to: url))
     }
 }
 
@@ -151,14 +151,14 @@ public struct StaticFile: FileTreeComponent {
         self.fileType = .extension(fileType)
     }
 
-    public func read(from url: URL) async throws -> Data {
+    public func read(from url: URL) throws -> Data {
         @Dependency(\.fileManagerClient) var fileManagerClient
         let fileUrl = url.appendingPathComponent(fileName.description, withType: fileType)
 
-        return try await fileManagerClient.data(contentsOf: fileUrl)
+        return try fileManagerClient.data(contentsOf: fileUrl)
     }
 
-    public func write(_ data: Data, to url: URL) async throws {
+    public func write(_ data: Data, to url: URL) throws {
         @Dependency(\.fileManagerClient) var fileManagerClient
         let fileUrl = url.appendingPathComponent(fileName.description, withType: fileType)
 
@@ -181,17 +181,49 @@ public struct File: FileTreeComponent {
         self.fileType = .extension(fileType)
     }
 
-    public func read(from url: URL) async throws -> FileContent<Data> {
+    public func read(from url: URL) throws -> FileContent<Data> {
         @Dependency(\.fileManagerClient) var fileManagerClient
         let fileUrl = url.appendingPathComponent(fileName, withType: fileType)
 
-        return try await FileContent(
+        return try FileContent(
             fileName: self.fileName,
             data: fileManagerClient.data(contentsOf: fileUrl)
         )
     }
 
-    public func write(_ fileContent: FileContent<Data>, to url: URL) async throws {
+    public func write(_ fileContent: FileContent<Data>, to url: URL) throws {
+        @Dependency(\.fileManagerClient) var fileManagerClient
+        let fileURL = url.appendingPathComponent(fileContent.fileName, withType: fileType)
+
+        try fileManagerClient.writeData(data: fileContent.data, to: fileURL)
+    }
+}
+
+public struct _File: FileTreeComponent {
+    let fileName: String
+    let fileType: FileType
+
+    public init(_ fileName: String, _ fileType: UTType) {
+        self.fileName = fileName
+        self.fileType = .utType(fileType)
+    }
+
+    public init(_ fileName: String, _ fileType: FileExtension) {
+        self.fileName = fileName
+        self.fileType = .extension(fileType)
+    }
+
+    public func read(from url: URL) throws -> FileContent<Data> {
+        @Dependency(\.fileManagerClient) var fileManagerClient
+        let fileUrl = url.appendingPathComponent(fileName, withType: fileType)
+
+        return try FileContent(
+            fileName: self.fileName,
+            data: fileManagerClient.data(contentsOf: fileUrl)
+        )
+    }
+
+    public func write(_ fileContent: FileContent<Data>, to url: URL) throws {
         @Dependency(\.fileManagerClient) var fileManagerClient
         let fileURL = url.appendingPathComponent(fileContent.fileName, withType: fileType)
 
@@ -211,13 +243,13 @@ public struct StaticDirectory<Content: FileTreeComponent>: FileTreeComponent {
         self.content = content()
     }
 
-    public func read(from url: URL) async throws -> Content.FileType {
+    public func read(from url: URL) throws -> Content.FileType {
         let directoryURL = url.appending(component: self.path.description)
 
-        return try await content.read(from: directoryURL)
+        return try content.read(from: directoryURL)
     }
 
-    public func write(_ data: Content.FileType, to url: URL) async throws {
+    public func write(_ data: Content.FileType, to url: URL) throws {
         @Dependency(\.fileManagerClient) var fileManagerClient
         let directoryPath = url.appending(component: path.description)
 
@@ -225,7 +257,7 @@ public struct StaticDirectory<Content: FileTreeComponent>: FileTreeComponent {
             try fileManagerClient.createDirectory(at: directoryPath, withIntermediateDirectories: false)
         }
 
-        try await content.write(data, to: directoryPath)
+        try content.write(data, to: directoryPath)
     }
 }
 
@@ -240,9 +272,9 @@ public struct Directory<Content: FileTreeComponent>: FileTreeComponent {
     }
 
     // This doesn't work because when Content.FileType is a tuple, we want DirectoryContents to have multiple types from that parameter pack
-    public func read(from url: URL) async throws -> DirectoryContents<Content.FileType> {
+    public func read(from url: URL) throws -> DirectoryContents<Content.FileType> {
         let directoryURL = url.appending(component: self.path)
-        let compoents = try await content.read(from: directoryURL)
+        let compoents = try content.read(from: directoryURL)
 
         return DirectoryContents(
             directoryName: self.path,
@@ -250,13 +282,13 @@ public struct Directory<Content: FileTreeComponent>: FileTreeComponent {
         )
     }
 
-    public func write(_ directoryContents: DirectoryContents<Content.FileType>, to url: URL) async throws {
+    public func write(_ directoryContents: DirectoryContents<Content.FileType>, to url: URL) throws {
         @Dependency(\.fileManagerClient) var fileManagerClient
         let directoryPath = url.appending(component: path.description)
 
         try fileManagerClient.createDirectory(at: directoryPath, withIntermediateDirectories: false)
 
-        try await content.write(directoryContents.components, to: directoryPath)
+        try content.write(directoryContents.components, to: directoryPath)
     }
 
 }
@@ -268,7 +300,7 @@ public struct Many<Content: FileTreeComponent>: FileTreeComponent {
         self.content = content
     }
 
-    public func read(from url: URL) async throws -> [Content.FileType] {
+    public func read(from url: URL) throws -> [Content.FileType] {
         @Dependency(\.fileManagerClient) var fileManagerClient
 
         let paths = try fileManagerClient.contentsOfDirectory(atPath: url)
@@ -277,31 +309,24 @@ public struct Many<Content: FileTreeComponent>: FileTreeComponent {
             content($0.deletingPathExtension().lastPathComponent)
         }
 
-        return try await withThrowingTaskGroup(of: Content.FileType.self) {
-            for component in components {
-                $0.addTask {
-                    try await component.read(from: url)
-                }
-            }
-
-            var results: [Content.FileType] = []
-
-            for try await result in $0 {
-                results.append(result)
-            }
-
-            return results
+        // TODO: Error Handling
+        // These should all be run in parallel, and then collect all errors
+        //
+        return try components.map {
+            try $0.read(from: url)
         }
     }
 
-    public func write(_ data: [Content.FileType], to url: URL) async throws {
+    public func write(_ data: [Content.FileType], to url: URL) throws {
         @Dependency(\.fileManagerClient) var fileManagerClient
 
         // Diff the current and the old, and if theres changes, write those changes to the file system
         // This is difficult because there's dynamic content involved here.
         // I think I may need to use some sort of system where I generate the data into a temp directory,
-        // Diff the new contents with the old contents, and
+        // Diff the new contents with the old contents, and.
 
+        // Could this also work with some sort of flag for when you're writing to an empty directory, so we don't have to do a runaround, in a lot of circumenstances?
+        fatalError("Unimplemented")
     }
 
 
@@ -499,13 +524,13 @@ public struct _TaggedFileTreeComponent<
     public typealias FileType = Child.FileType
 
     @inlinable
-    public func read(from url: URL) async throws -> Child.FileType {
-        try await fileTree.read(from: url)
+    public func read(from url: URL) throws -> Child.FileType {
+        try fileTree.read(from: url)
     }
 
     @inlinable
-    public func write(_ data: Child.FileType, to url: URL) async throws {
-        try await fileTree.write(data, to: url)
+    public func write(_ data: Child.FileType, to url: URL) throws {
+        try fileTree.write(data, to: url)
     }
 
     @inlinable
