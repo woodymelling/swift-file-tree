@@ -199,6 +199,38 @@ public struct File: FileTreeComponent {
     }
 }
 
+public struct _File: FileTreeComponent {
+    let fileName: String
+    let fileType: FileType
+
+    public init(_ fileName: String, _ fileType: UTType) {
+        self.fileName = fileName
+        self.fileType = .utType(fileType)
+    }
+
+    public init(_ fileName: String, _ fileType: FileExtension) {
+        self.fileName = fileName
+        self.fileType = .extension(fileType)
+    }
+
+    public func read(from url: URL) async throws -> FileContent<Data> {
+        @Dependency(\.fileManagerClient) var fileManagerClient
+        let fileUrl = url.appendingPathComponent(fileName, withType: fileType)
+
+        return try await FileContent(
+            fileName: self.fileName,
+            data: fileManagerClient.data(contentsOf: fileUrl)
+        )
+    }
+
+    public func write(_ fileContent: FileContent<Data>, to url: URL) async throws {
+        @Dependency(\.fileManagerClient) var fileManagerClient
+        let fileURL = url.appendingPathComponent(fileContent.fileName, withType: fileType)
+
+        try fileManagerClient.writeData(data: fileContent.data, to: fileURL)
+    }
+}
+
 
 // MARK: - Directory
 
