@@ -311,7 +311,6 @@ public struct Many<Content: FileTreeComponent>: FileTreeComponent {
 
         // TODO: Error Handling
         // These should all be run in parallel, and then collect all errors
-        //
         return try components.map {
             try $0.read(from: url)
         }

@@ -114,3 +114,42 @@ private struct Content: View {
         Text("Content")
     }
 }
+
+// MARK: - FileDocument
+
+
+import Foundation
+
+extension FileTreeComponent {
+    func read(from fileWrapper: FileWrapper) throws -> FileType {
+        // Create a unique temporary directory.
+        let tempDirectoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {
+            // Clean up the temporary directory after use.
+            try? FileManager.default.removeItem(at: tempDirectoryURL)
+        }
+        // Ensure the temporary directory exists.
+        try FileManager.default.createDirectory(at: tempDirectoryURL, withIntermediateDirectories: true)
+        // Write the file wrapper's contents to the temporary directory.
+        try fileWrapper.write(to: tempDirectoryURL, options: [], originalContentsURL: nil)
+        // Use existing method to read from the directory.
+        return try self.read(from: tempDirectoryURL)
+    }
+
+    func write(_ data: FileType) throws -> FileWrapper {
+        // Create a unique temporary directory.
+        let tempDirectoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {
+            // Clean up the temporary directory after use.
+            try? FileManager.default.removeItem(at: tempDirectoryURL)
+        }
+        // Ensure the temporary directory exists.
+        try FileManager.default.createDirectory(at: tempDirectoryURL, withIntermediateDirectories: true)
+        // Use existing method to write data to the directory.
+        try self.write(data, to: tempDirectoryURL)
+        // Create a FileWrapper from the temporary directory.
+        let fileWrapper = try FileWrapper(url: tempDirectoryURL, options: .immediate)
+        return fileWrapper
+    }
+}
+
