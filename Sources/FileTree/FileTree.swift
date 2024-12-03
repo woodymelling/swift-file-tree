@@ -290,6 +290,8 @@ public struct Many<Content: FileTreeComponent>: FileTreeComponent where Content.
         // These should all be run in parallel, and then collect all errors
         return try components.map {
             try $0.read(from: url)
+        }.sorted {
+            $0.name < $1.name
         }
     }
 
@@ -319,17 +321,14 @@ public struct Many<Content: FileTreeComponent>: FileTreeComponent where Content.
             
             which will naively write all the contents to the directory, and not delete anything that is already there.
             """)
+
+            // Diff the current and the old, and if theres changes, write those changes to the file system
+            // This is difficult because there's dynamic content involved here.
+            // I think I may need to use some sort of system where I generate the data into a temp directory,
+            // Diff the new contents with the old contents, and.
+
+            // Could this also work with some sort of flag for when you're writing to an empty directory, so we don't have to do a runaround, in a lot of circumenstances?
         }
-
-
-
-        // Diff the current and the old, and if theres changes, write those changes to the file system
-        // This is difficult because there's dynamic content involved here.
-        // I think I may need to use some sort of system where I generate the data into a temp directory,
-        // Diff the new contents with the old contents, and.
-
-        // Could this also work with some sort of flag for when you're writing to an empty directory, so we don't have to do a runaround, in a lot of circumenstances?
-        fatalError("Unimplemented")
     }
 }
 
