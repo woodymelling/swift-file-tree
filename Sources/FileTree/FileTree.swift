@@ -199,38 +199,6 @@ public struct File: FileTreeComponent {
     }
 }
 
-public struct _File: FileTreeComponent {
-    let fileName: String
-    let fileType: FileType
-
-    public init(_ fileName: String, _ fileType: UTType) {
-        self.fileName = fileName
-        self.fileType = .utType(fileType)
-    }
-
-    public init(_ fileName: String, _ fileType: FileExtension) {
-        self.fileName = fileName
-        self.fileType = .extension(fileType)
-    }
-
-    public func read(from url: URL) throws -> FileContent<Data> {
-        @Dependency(\.fileManagerClient) var fileManagerClient
-        let fileUrl = url.appendingPathComponent(fileName, withType: fileType)
-
-        return try FileContent(
-            fileName: self.fileName,
-            data: fileManagerClient.data(contentsOf: fileUrl)
-        )
-    }
-
-    public func write(_ fileContent: FileContent<Data>, to url: URL) throws {
-        @Dependency(\.fileManagerClient) var fileManagerClient
-        let fileURL = url.appendingPathComponent(fileContent.fileName, withType: fileType)
-
-        try fileManagerClient.writeData(data: fileContent.data, to: fileURL)
-    }
-}
-
 
 // MARK: - Directory
 
@@ -290,10 +258,19 @@ public struct Directory<Content: FileTreeComponent>: FileTreeComponent {
 
         try content.write(directoryContents.components, to: directoryPath)
     }
-
 }
 
-public struct Many<Content: FileTreeComponent>: FileTreeComponent {
+public protocol NamedContentProtocol {
+    var name: String { get }
+}
+
+extension FileContent: NamedContentProtocol {
+    public var name: String {
+        self.fileName
+    }
+}
+
+public struct Many<Content: FileTreeComponent>: FileTreeComponent where Content.FileType: NamedContentProtocol {
     var content: @Sendable (String) -> Content
 
     public init(@FileTreeBuilder _ content: @Sendable @escaping (String) -> Content) {
@@ -319,6 +296,33 @@ public struct Many<Content: FileTreeComponent>: FileTreeComponent {
     public func write(_ data: [Content.FileType], to url: URL) throws {
         @Dependency(\.fileManagerClient) var fileManagerClient
 
+        if writingToEmptyDirectory {
+            try data.forEach {
+                try self.content($0.name).write($0, to: url)
+            }
+        } else {
+            reportIssue("""
+            Writing to directories that may already have contents currently unsupported.
+            
+            This is because it is difficult to determine if a value that does not exist in the array of values getting written should be deleted because it was removed,
+            or if it exists outside of the purview of the `Many { }` block and should be left alone.
+            
+            The semantics of Many may need to be tweaked to make this determination more clear.
+            
+            To allow writing to the directory, use:
+            
+            ```
+            $writingToEmptyDirectory.withValue(true) { 
+                Many { StaticFile($0, "txt").write(...) }
+            }
+            ```
+            
+            which will naively write all the contents to the directory, and not delete anything that is already there.
+            """)
+        }
+
+
+
         // Diff the current and the old, and if theres changes, write those changes to the file system
         // This is difficult because there's dynamic content involved here.
         // I think I may need to use some sort of system where I generate the data into a temp directory,
@@ -327,9 +331,10 @@ public struct Many<Content: FileTreeComponent>: FileTreeComponent {
         // Could this also work with some sort of flag for when you're writing to an empty directory, so we don't have to do a runaround, in a lot of circumenstances?
         fatalError("Unimplemented")
     }
-
-
 }
+
+@TaskLocal
+var writingToEmptyDirectory = false
 
 extension Many: FileTreeViewable where Content: FileTreeViewable, Content.FileType: Identifiable, Content.FileType.ID: CustomStringConvertible {
     public func view(for values: [Content.FileType]) -> some View {
