@@ -468,7 +468,6 @@ struct DirectoryView<F: FileTreeViewable>: View {
         content: F,
         searchItems: Set<String>
     ) {
-
         self.name = name
         self.data = data
         self.searchItems = searchItems
@@ -478,7 +477,7 @@ struct DirectoryView<F: FileTreeViewable>: View {
 
     var body: some View {
         Group(subviews: subContent) { subviews in
-            if !subviews.isEmpty {
+            if searchText.isEmpty || !subviews.isEmpty {
 
                 DisclosureGroup {
                     subContent
@@ -491,7 +490,6 @@ struct DirectoryView<F: FileTreeViewable>: View {
                 }
             }
         }
-
     }
 }
 

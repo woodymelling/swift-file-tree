@@ -28,7 +28,7 @@ final class FileTreeConversionTests {
     }
 
     @Test(.tags(.fileReading, .fileWriting, .conversion))
-    func testDataToStringConversionRoundTrip() throws {
+    func dataToStringConversionRoundTrip() throws {
         let staticFileTree = StaticFile("TestFile", "txt")
             .map(Conversions.DataToString())
 
@@ -41,7 +41,7 @@ final class FileTreeConversionTests {
     }
 
     @Test(.tags(.fileReading, .fileWriting, .conversion))
-    func testDataToCodableConversionRoundTrip() throws {
+    func dataToCodableConversionRoundTrip() throws {
         struct User: Codable, Equatable {
             let id: Int
             let name: String
@@ -56,6 +56,28 @@ final class FileTreeConversionTests {
         let readUser = try userFileTree.read(from: tempDirectoryURL)
 
         #expect(testUser == readUser, "The read user should match the written user.")
+    }
+
+    @Test(.tags(.fileReading, .many))
+    func manyConvertedFiles() throws {
+        struct Foo: Equatable {
+            var title: String
+            var contents: Data
+        }
+        let fileTree = Many {
+            File($0, .text)
+                .map {
+                    AnyConversion<FileContent<Data>, Foo>(
+                        apply: {
+                            Foo(title: $0.fileName, contents: $0.data)
+
+                        },
+                        unapply: {
+                            FileContent(fileName: $0.title, data: $0.contents)
+                        }
+                    )
+                }
+        }
     }
 
 }
