@@ -99,7 +99,7 @@ extension EnvironmentValues {
 
 // MARK: - FileWrapper
 
-extension FileTreeComponent {
+public extension FileTreeComponent {
     func read(from fileWrapper: FileWrapper) throws -> Content {
         let tempDirectoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer {
@@ -111,18 +111,16 @@ extension FileTreeComponent {
     }
 
     func write(_ data: Content) throws -> FileWrapper {
-        // Create a unique temporary directory.
         let tempDirectoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer {
-            // Clean up the temporary directory after use.
             try? FileManager.default.removeItem(at: tempDirectoryURL)
         }
-        // Ensure the temporary directory exists.
+
         try FileManager.default.createDirectory(at: tempDirectoryURL, withIntermediateDirectories: true)
         try $writingToEmptyDirectory.withValue(true) {
             try self.write(data, to: tempDirectoryURL)
         }
-        // Create a FileWrapper from the temporary directory.
+
         let fileWrapper = try FileWrapper(url: tempDirectoryURL, options: .immediate)
         return fileWrapper
     }
