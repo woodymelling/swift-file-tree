@@ -29,7 +29,7 @@ final class FileTreeConversionTests {
 
     @Test(.tags(.fileReading, .fileWriting, .conversion))
     func dataToStringConversionRoundTrip() throws {
-        let staticFileTree = StaticFile("TestFile", "txt")
+        let staticFileTree = File("TestFile", "txt")
             .convert(Conversions.DataToString())
 
         let testString = "Hello, World!"
@@ -47,7 +47,7 @@ final class FileTreeConversionTests {
             let name: String
         }
 
-        let userFileTree = StaticFile("UserFile", "json")
+        let userFileTree = File("UserFile", "json")
             .convert(.json(User.self))
 
         let testUser = User(id: 1, name: "Alice")
@@ -60,9 +60,9 @@ final class FileTreeConversionTests {
 
     @Test(.tags(.fileReading, .fileWriting, .many))
     func testDirectoriesWithTwoFilesRoundTrip() throws {
-        let directories = Directories {
-            StaticFile("File1", .text)
-            StaticFile("File2", .text)
+        let directories = Directory.Many {
+            File("File1", .text)
+            File("File2", .text)
         }
 
         let directoryContents = [
