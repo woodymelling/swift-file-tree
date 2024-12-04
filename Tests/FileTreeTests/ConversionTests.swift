@@ -30,7 +30,7 @@ final class FileTreeConversionTests {
     @Test(.tags(.fileReading, .fileWriting, .conversion))
     func dataToStringConversionRoundTrip() throws {
         let staticFileTree = StaticFile("TestFile", "txt")
-            .map(Conversions.DataToString())
+            .convert(Conversions.DataToString())
 
         let testString = "Hello, World!"
 
@@ -48,7 +48,7 @@ final class FileTreeConversionTests {
         }
 
         let userFileTree = StaticFile("UserFile", "json")
-            .map(.json(User.self))
+            .convert(.json(User.self))
 
         let testUser = User(id: 1, name: "Alice")
 
@@ -58,27 +58,50 @@ final class FileTreeConversionTests {
         #expect(testUser == readUser, "The read user should match the written user.")
     }
 
-    @Test(.tags(.fileReading, .many))
-    func manyConvertedFiles() throws {
-        struct Foo: Equatable {
-            var title: String
-            var contents: Data
+    @Test(.tags(.fileReading, .fileWriting, .many))
+    func testDirectoriesWithTwoFilesRoundTrip() throws {
+        let directories = Directories {
+            StaticFile("File1", .text)
+            StaticFile("File2", .text)
         }
-        let fileTree = Many {
-            File($0, .text)
-                .map {
-                    AnyConversion<FileContent<Data>, Foo>(
-                        apply: {
-                            Foo(title: $0.fileName, contents: $0.data)
 
-                        },
-                        unapply: {
-                            FileContent(fileName: $0.title, data: $0.contents)
-                        }
-                    )
-                }
+        let directoryContents = [
+            DirectoryContents(
+                directoryName: "Directory1",
+                components: (
+                    Data("Content 1".utf8),
+                    Data("Content 2".utf8)
+                )
+            ),
+            DirectoryContents(
+                directoryName: "Directory2",
+                components: (
+                    Data("Content 3".utf8),
+                    Data("Content 4".utf8)
+                )
+            )
+        ]
+
+        try $writingToEmptyDirectory.withValue(true) {
+            try directories.write(directoryContents, to: tempDirectoryURL)
+        }
+
+        let readContents = try directories.read(from: tempDirectoryURL)
+
+        #expect(directoryContents.count == readContents.count, "The number of directories read should match the number written.")
+
+        for (writtenDir, readDir) in zip(directoryContents, readContents) {
+            #expect(writtenDir.directoryName == readDir.directoryName, "Directory names should match.")
+
+            let (writtenData1, writtenData2) = writtenDir.components
+            let (readData1, readData2) = readDir.components
+
+            #expect(writtenData1 == readData1, "Data for File1 in \(writtenDir.directoryName) should match.")
+            #expect(writtenData2 == readData2, "Data for File2 in \(writtenDir.directoryName) should match.")
         }
     }
+
+
 
 }
 

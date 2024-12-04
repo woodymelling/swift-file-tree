@@ -112,9 +112,18 @@ public struct TupleFileSystemComponent<each T: FileTreeComponent>: FileTreeCompo
     }
 }
 
-public enum FileType: Sendable, Hashable {
+enum UTFileExtension: Sendable, Hashable {
     case utType(UTType)
     case `extension`(FileExtension)
+
+    var identifier: String {
+        switch self {
+        case .utType(let utType):
+            utType.identifier
+        case .extension(let e):
+            e.rawValue
+        }
+    }
 }
 
 public struct FileExtension: ExpressibleByStringLiteral, Sendable, Hashable {
@@ -126,7 +135,7 @@ public struct FileExtension: ExpressibleByStringLiteral, Sendable, Hashable {
 }
 
 extension URL {
-    func appendingPathComponent(_ partialName: String, withType type: FileType) -> URL {
+    func appendingPathComponent(_ partialName: String, withType type: UTFileExtension) -> URL {
         switch type {
         case .utType(let utType):
             self.appendingPathComponent(partialName, conformingTo: utType)
@@ -136,10 +145,11 @@ extension URL {
     }
 }
 
+
 // MARK: - File
 public struct StaticFile: FileTreeComponent {
     let fileName: StaticString
-    let fileType: FileType
+    let fileType: UTFileExtension
 
     public init(_ fileName: StaticString, _ fileType: UTType) {
         self.fileName = fileName
@@ -169,7 +179,7 @@ public struct StaticFile: FileTreeComponent {
 
 public struct File: FileTreeComponent {
     let fileName: String
-    let fileType: FileType
+    let fileType: UTFileExtension
 
     public init(_ fileName: String, _ fileType: UTType) {
         self.fileName = fileName
@@ -198,6 +208,79 @@ public struct File: FileTreeComponent {
         try fileManagerClient.writeData(data: fileContent.data, to: fileURL)
     }
 }
+
+public struct Files: FileTreeComponent {
+    public typealias FileType = [FileContent<Data>]
+    let fileType: UTFileExtension
+
+    public init(withExtension fileType: UTType) {
+        self.fileType = .utType(fileType)
+    }
+
+    public init(withExtension fileType: FileExtension) {
+        self.fileType = .extension(fileType)
+    }
+    public func read(from url: URL) throws -> [FileContent<Data>] {
+        @Dependency(\.fileManagerClient) var fileManagerClient
+
+        let paths = try fileManagerClient.contentsOfDirectory(atPath: url)
+        let filteredPaths = paths.filter { $0.pathExtension == self.fileType.identifier }
+
+        return try filteredPaths.map { fileURL in
+
+            let data = try fileManagerClient.data(contentsOf: fileURL)
+            return FileContent(fileName: fileURL.deletingPathExtension().lastPathComponent, data: data)
+        }.sorted { $0.fileName < $1.fileName }
+    }
+
+    public func write(_ data: [FileContent<Data>], to url: URL) throws {        @Dependency(\.fileManagerClient) var fileManagerClient
+
+        for fileContent in data {
+            let fileURL = url.appendingPathComponent(fileContent.fileName, withType: self.fileType)
+            try fileManagerClient.writeData(data: fileContent.data, to: fileURL)
+        }
+    }
+}
+
+public struct Directories<Component: FileTreeComponent>: FileTreeComponent {
+    public typealias FileType = [DirectoryContents<Component.FileType>]
+
+    var component: Component
+
+    public init(@FileTreeBuilder content: @Sendable () -> Component) {
+        self.component = content()
+    }
+
+    public func read(from url: URL) throws -> [DirectoryContents<Component.FileType>] {
+        @Dependency(\.fileManagerClient) var fileManagerClient
+
+        let directoryNames = try fileManagerClient.directories(atPath: url)
+
+        return try directoryNames.map {
+            let contents = try component.read(from: $0)
+            return DirectoryContents(directoryName: $0.lastPathComponent, components: contents)
+        }.sorted(by: { $0.directoryName < $1.directoryName })
+    }
+
+    public func write(_ data: [DirectoryContents<Component.FileType>], to url: URL) throws {
+        @Dependency(\.fileManagerClient) var fileManagerClient
+
+        if !fileManagerClient.fileExists(atPath: url) {
+            try fileManagerClient.createDirectory(at: url, withIntermediateDirectories: true)
+        }
+
+        for directoryContent in data {
+            let directoryURL = url.appendingPathComponent(directoryContent.directoryName)
+
+            if !fileManagerClient.fileExists(atPath: directoryURL) {
+                try fileManagerClient.createDirectory(at: directoryURL, withIntermediateDirectories: false)
+            }
+
+            try component.write(directoryContent.components, to: directoryURL)
+        }
+    }
+}
+
 
 
 // MARK: - Directory

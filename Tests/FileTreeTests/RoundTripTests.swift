@@ -108,4 +108,28 @@ final class FileTreeTests {
             #expect(written.data == read.data, "File data should match.")
         }
     }
+
+    @Test(.tags(.fileReading, .fileReading, .many))
+    func testFilesRoundTrip() throws {
+        let fileTree = Files(withExtension: "txt")
+
+        let fileContents = [
+            FileContent(fileName: "File1", data: Data("Content 1".utf8)),
+            FileContent(fileName: "File2", data: Data("Content 2".utf8)),
+            FileContent(fileName: "File3", data: Data("Content 3".utf8))
+        ]
+
+        try $writingToEmptyDirectory.withValue(true) {
+            try fileTree.write(fileContents, to: tempDirectoryURL)
+        }
+
+        let readContents = try fileTree.read(from: tempDirectoryURL)
+
+        #expect(fileContents.count == readContents.count, "The number of files read should match the number written.")
+
+        for (written, read) in zip(fileContents, readContents) {
+            #expect(written.fileName == read.fileName, "File names should match.")
+            #expect(written.data == read.data, "File data should match.")
+        }
+    }
 }

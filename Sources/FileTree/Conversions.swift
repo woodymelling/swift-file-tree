@@ -136,18 +136,12 @@ extension Result where Self: Sendable {
 }
 
 extension FileTreeComponent {
-//    public func map<NewOutput>(
-//        _ transform: @escaping @Sendable (FileType) throws -> NewOutput
-//    ) -> Map<Self, NewOutput> {
-//        .init(upstream: self, transform: transform)
-//    }
-
     @inlinable
-    public func map<C>(_ conversion: C) -> MapConversionComponent<Self, C> {
+    public func convert<C>(_ conversion: C) -> MapConversionComponent<Self, C> {
         .init(upstream: self, downstream: conversion)
     }
 
-    public func map<C>(@ConversionBuilder build: () -> C) -> MapConversionComponent<Self, C> {
-        self.map(build())
+    public func convert<C>(@ConversionBuilder build: () -> C) -> MapConversionComponent<Self, C> {
+        self.convert(build())
     }
 }
