@@ -194,35 +194,100 @@ extension _ConvertedFileTreeComponent: FileTreeViewable where Upstream: FileTree
     }
 
     struct ConversionView: View {
-        @State var result: Result<Upstream.Content, Error>?
 
         var upstream: Upstream
-        var downStreamUnapply: @Sendable (Downstream.Output) async throws -> Upstream.Content
+        var downStreamUnapply: @Sendable (Downstream.Output) throws -> Upstream.Content
         var value: Downstream.Output
 
-        var body: some View {
-            Group {
-                if let result {
-                    switch result {
-                    case .success(let success):
-                        upstream.view(for: success)
-                    case .failure(let failure):
-                        Text("ERROR")
-                            .onAppear {
-                                print(failure)
-                            }
-                    }
-                } else {
-                    Text("Loading...")
-                }
+        var result: Result<Upstream.Content, Error> {
+            Result {
+                try downStreamUnapply(value)
             }
-            .onChange(of: value, initial: true) { _, newValue in
-                Task { @MainActor in
-                    result = await Result(sendable: {
-                        try await downStreamUnapply(newValue)
-                    })
-                }
+        }
 
+        var body: some View {
+            switch result {
+            case .success(let success):
+                upstream.view(for: success)
+            case .failure(let failure):
+                ContentErrorView(error: failure)
+            }
+        }
+    }
+}
+
+struct ContentErrorView<E: Error>: View {
+    let error: E
+
+    var body: some View {
+        Label {
+            Text(error.localizedDescription)
+        } icon: {
+            Image(systemName: "exclamationmark.octagon.fill")
+                .foregroundStyle(.red)
+        }
+    }
+}
+
+extension _ManyFileMapConversion: FileTreeViewable where File.Many: FileTreeViewable {
+    @MainActor
+    public func view(for value: [NewContent]) -> some View {
+        ConversionView(
+            upstream: original,
+            downStreamUnapply: conversion.unapply,
+            value: value
+        )
+    }
+
+    struct ConversionView: View {
+        var upstream: File.Many
+        var downStreamUnapply: @Sendable (NewContent) throws -> FileContent<Data>
+        var value: [NewContent]
+
+        var result: Result<[FileContent<Data>], Error> {
+            Result {
+                try value.map { try downStreamUnapply($0) }
+            }
+        }
+
+        var body: some View {
+            switch result {
+            case .success(let success):
+                upstream.view(for: success)
+            case .failure(let failure):
+                ContentErrorView(error: failure)
+            }
+        }
+    }
+}
+
+extension _ManyDirectoryMapConversion: FileTreeViewable where Component: FileTreeViewable, Directory<Component>.Many: FileTreeViewable {
+    @MainActor
+    public func view(for value: [NewContent]) -> some View {
+        ConversionView(
+            upstream: original,
+            downStreamUnapply: conversion.unapply,
+            value: value
+        )
+    }
+
+    struct ConversionView: View {
+        var upstream: Directory<Component>.Many
+        var downStreamUnapply: @Sendable (NewContent) throws -> DirectoryContent<Component.Content>
+        var value: [NewContent]
+
+        var result: Result<[DirectoryContent<Component.Content>], Error> {
+            Result {
+                try value.map { try downStreamUnapply($0) }
+            }
+        }
+
+        var body: some View {
+            switch result {
+            case .success(let success):
+                upstream.view(for: success)
+            case .failure(let failure):
+                ContentErrorView(error: failure)
             }
         }
     }
