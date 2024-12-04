@@ -221,6 +221,8 @@ public struct Files: FileTreeComponent {
         self.fileType = .extension(fileType)
     }
     public func read(from url: URL) throws -> [FileContent<Data>] {
+
+        
         @Dependency(\.fileManagerClient) var fileManagerClient
 
         let paths = try fileManagerClient.contentsOfDirectory(atPath: url)
@@ -233,7 +235,32 @@ public struct Files: FileTreeComponent {
         }.sorted { $0.fileName < $1.fileName }
     }
 
-    public func write(_ data: [FileContent<Data>], to url: URL) throws {        @Dependency(\.fileManagerClient) var fileManagerClient
+    public func write(_ data: [FileContent<Data>], to url: URL) throws {
+        guard writingToEmptyDirectory
+        else {
+            reportIssue("""
+            Writing an array of files to a directory that may already have contents currently unsupported.
+            
+            This is because of the circumstance where a file exists in the directory, but not in the array
+            It is difficult to determine if the file should be deleted, 
+            or if it exists outside of the purview of the `Files` block and should be left alone.
+            
+            The semantics of Many may need to be tweaked to make this determination more clear.
+            
+            To allow writing to the directory, use:
+            
+            ```
+            $writingToEmptyDirectory.withValue(true) { 
+                Files(withExtension: .text).write([Data(), Data(), Data()]))
+            }
+            ```
+            
+            which will naively write all the contents to the directory, and not delete anything that is already there.
+            """)
+            return
+        }
+
+        @Dependency(\.fileManagerClient) var fileManagerClient
 
         for fileContent in data {
             let fileURL = url.appendingPathComponent(fileContent.fileName, withType: self.fileType)
@@ -263,6 +290,30 @@ public struct Directories<Component: FileTreeComponent>: FileTreeComponent {
     }
 
     public func write(_ data: [DirectoryContents<Component.FileType>], to url: URL) throws {
+        guard writingToEmptyDirectory
+        else {
+            reportIssue("""
+            Writing a `Many` to a directory that may already have contents currently unsupported.
+            
+            This is because it is difficult to determine if a value that does not exist in the array of values getting written should be deleted because it was removed,
+            or if it exists outside of the purview of the `Many { }` block and should be left alone.
+            
+            The semantics of Many may need to be tweaked to make this determination more clear.
+            
+            To allow writing to the directory, use:
+            
+            ```
+            $writingToEmptyDirectory.withValue(true) { 
+                Directories { StaticFile($0, "txt") }.write(...)
+            }
+            ```
+            
+            which will naively write all the contents to the directory, and not delete anything that is already there.
+            """)
+            return
+        }
+
+
         @Dependency(\.fileManagerClient) var fileManagerClient
 
         if !fileManagerClient.fileExists(atPath: url) {
@@ -386,24 +437,7 @@ public struct Many<Component: FileTreeComponent>: FileTreeComponent where Compon
                 try self.content($0.name).write($0, to: url)
             }
         } else {
-            reportIssue("""
-            Writing to directories that may already have contents currently unsupported.
-            
-            This is because it is difficult to determine if a value that does not exist in the array of values getting written should be deleted because it was removed,
-            or if it exists outside of the purview of the `Many { }` block and should be left alone.
-            
-            The semantics of Many may need to be tweaked to make this determination more clear.
-            
-            To allow writing to the directory, use:
-            
-            ```
-            $writingToEmptyDirectory.withValue(true) { 
-                Many { StaticFile($0, "txt").write(...) }
-            }
-            ```
-            
-            which will naively write all the contents to the directory, and not delete anything that is already there.
-            """)
+
 
             // Diff the current and the old, and if theres changes, write those changes to the file system
             // This is difficult because there's dynamic content involved here.

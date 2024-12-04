@@ -11,7 +11,6 @@ import Dependencies
 import DependenciesTestSupport
 @testable import FileTree
 
-
 extension URL {
     static let resourcesFolder = Bundle.module.bundleURL.appending(component: "Contents/Resources/Resources")
 }
@@ -26,26 +25,26 @@ extension Data {
 struct FileSystemTests {
 
     @Test
-    func readSimpleDirectory() async throws {
+    func readSimpleDirectory() throws {
         let simpleDirectory = Directory("SimpleDirectory") {
             File("FirstFile", .plainText)
         }
 
-        let result = try await simpleDirectory.read(from: .resourcesFolder)
+        let result = try simpleDirectory.read(from: .resourcesFolder)
         #expect(result.directoryName == "SimpleDirectory")
         #expect(result.components.data.utf8DecodedString == "This is some text\n")
         #expect(result.components.fileName == "FirstFile")
     }
 
     @Test
-    func readManyFromSimpleDirectory() async throws {
+    func readManyFromSimpleDirectory() throws {
         let simpleDirectory = Directory("SimpleDirectory") {
             Many {
                 File($0, .plainText)
             }
         }
 
-        let result = try await simpleDirectory.read(from: .resourcesFolder)
+        let result = try simpleDirectory.read(from: .resourcesFolder)
 
         #expect(result.directoryName == "SimpleDirectory")
 
@@ -57,16 +56,6 @@ struct FileSystemTests {
         #expect(components[1].fileName == "SecondFile")
         #expect(components[1].data.utf8DecodedString == "one more chunk of text\n")
     }
-
-    @Test
-    func readMarkdown() async throws {
-        let file = FileTree {
-            StaticFile("Markdown", "md")
-        }
-
-        let result = try await file.read(from: .resourcesFolder)
-    }
-
 }
 
 

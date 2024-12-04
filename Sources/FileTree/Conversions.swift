@@ -75,9 +75,6 @@ where Downstream.Input == Upstream.FileType, Downstream.Output: Sendable & Equat
     public func write(_ data: Downstream.Output, to url: URL) throws {
         try self.upstream.write(downstream.unapply(data), to: url)
     }
-
-
-
 }
 
 extension MapConversionComponent: FileTreeViewable where Upstream: FileTreeViewable {
@@ -88,7 +85,6 @@ extension MapConversionComponent: FileTreeViewable where Upstream: FileTreeViewa
             value: value
         )
     }
-
 
     struct ConversionView: View {
         @State var result: Result<Upstream.FileType, Error>?
