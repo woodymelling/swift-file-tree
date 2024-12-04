@@ -6,28 +6,28 @@ import UniformTypeIdentifiers
 // MARK: Result Builder
 @resultBuilder
 public struct FileTreeBuilder {
-    public static func buildExpression<Component>(_ content: Component) -> Component where Component: FileTreeComponent {
-        content
+    public static func buildExpression<Component>(_ component: Component) -> Component where Component: FileTreeComponent {
+        component
     }
 
-    public static func buildBlock<Component>(_ content: Component) -> Component where Component: FileTreeComponent {
-        content
+    public static func buildBlock<Component>(_ component: Component) -> Component where Component: FileTreeComponent {
+        component
     }
 
-    public static func buildBlock<each Component>(_ content: repeat each Component) -> TupleFileSystemComponent<repeat each Component> where repeat each Component: FileTreeComponent {
-        return TupleFileSystemComponent(repeat each content)
+    public static func buildBlock<each Component>(_ component: repeat each Component) -> TupleFileSystemComponent<repeat each Component> where repeat each Component: FileTreeComponent {
+        return TupleFileSystemComponent(repeat each component)
     }
 }
 
 // MARK: Protocol
-public protocol FileTreeComponent<FileType>: Sendable {
-    associatedtype FileType: Sendable
+public protocol FileTreeComponent<Content>: Sendable {
+    associatedtype Content: Sendable
 
     associatedtype Body
 
-    func read(from url: URL) throws -> FileType
+    func read(from url: URL) throws -> Content
 
-    func write(_ data: FileType, to url: URL) throws
+    func write(_ data: Content, to url: URL) throws
 
     @FileTreeBuilder
     var body: Body { get }
@@ -38,7 +38,7 @@ public protocol FileTreeViewable: FileTreeComponent {
 
     @ViewBuilder
     @MainActor
-    func view(for fileType: FileType) -> ViewBody
+    func view(for content: Content) -> ViewBody
 }
 
 
@@ -52,12 +52,12 @@ extension FileTreeComponent where Body == Never {
     }
 }
 
-extension FileTreeComponent where Body: FileTreeComponent, Body.FileType == FileType {
-    public func read(from url: URL) throws -> FileType {
+extension FileTreeComponent where Body: FileTreeComponent, Body.Content == Content {
+    public func read(from url: URL) throws -> Content {
         try body.read(from: url)
     }
 
-    public func write(_ data: FileType, to url: URL) throws {
+    public func write(_ data: Content, to url: URL) throws {
         try body.write(data, to: url)
     }
 
@@ -68,19 +68,19 @@ import SwiftUI
 
 public struct FileTree<Component: FileTreeComponent>: FileTreeComponent {
 
-    public var content: Component
-    public typealias FileType = Component.FileType
+    public var component: Component
+    public typealias Content = Component.Content
 
-    public init(@FileTreeBuilder content: () -> Component) {
-        self.content = content()
+    public init(@FileTreeBuilder component: () -> Component) {
+        self.component = component()
     }
 
-    public func read(from url: URL) throws -> Component.FileType {
-        try self.content.read(from: url)
+    public func read(from url: URL) throws -> Component.Content {
+        try self.component.read(from: url)
     }
 
-    public func write(_ data: Component.FileType, to url: URL) throws {
-        try self.content.write(data, to: url)
+    public func write(_ data: Component.Content, to url: URL) throws {
+        try self.component.write(data, to: url)
     }
 }
 
@@ -91,13 +91,13 @@ public struct TupleFileSystemComponent<each T: FileTreeComponent>: FileTreeCompo
         self.value = (repeat each value)
     }
 
-    public typealias FileType = (repeat (each T).FileType)
+    public typealias Content = (repeat (each T).Content)
 
-    public func read(from url: URL) throws -> FileType {
+    public func read(from url: URL) throws -> Content {
         try (repeat (each value).read(from: url))
     }
 
-    public func write(_ data: (repeat (each T).FileType), to url: URL) throws {
+    public func write(_ data: (repeat (each T).Content), to url: URL) throws {
         try (repeat (each value).write((each data), to: url))
     }
 }
@@ -168,15 +168,15 @@ public struct File: FileTreeComponent {
 
 extension File {
     public struct Many: FileTreeComponent {
-        public typealias FileType = [FileContent<Data>]
+        public typealias Content = [FileContent<Data>]
         let fileType: UTFileExtension
 
-        public init(withExtension fileType: UTType) {
-            self.fileType = .utType(fileType)
+        public init(withExtension content: UTType) {
+            self.fileType = .utType(content)
         }
 
-        public init(withExtension fileType: FileExtension) {
-            self.fileType = .extension(fileType)
+        public init(withExtension content: FileExtension) {
+            self.fileType = .extension(content)
         }
         public func read(from url: URL) throws -> [FileContent<Data>] {
 
@@ -231,20 +231,20 @@ extension File {
 
 public struct Directory<Component: FileTreeComponent>: FileTreeComponent {
     let path: StaticString
-    var content: Component
+    var component: Component
 
-    public init(_ path: StaticString, @FileTreeBuilder content: () -> Component) {
+    public init(_ path: StaticString, @FileTreeBuilder component: () -> Component) {
         self.path = path
-        self.content = content()
+        self.component = component()
     }
 
-    public func read(from url: URL) throws -> Component.FileType {
+    public func read(from url: URL) throws -> Component.Content {
         let directoryURL = url.appending(component: self.path.description)
 
-        return try content.read(from: directoryURL)
+        return try component.read(from: directoryURL)
     }
 
-    public func write(_ data: Component.FileType, to url: URL) throws {
+    public func write(_ data: Component.Content, to url: URL) throws {
         @Dependency(\.fileManagerClient) var fileManagerClient
         let directoryPath = url.appending(component: path.description)
 
@@ -252,21 +252,21 @@ public struct Directory<Component: FileTreeComponent>: FileTreeComponent {
             try fileManagerClient.createDirectory(at: directoryPath, withIntermediateDirectories: false)
         }
 
-        try content.write(data, to: directoryPath)
+        try component.write(data, to: directoryPath)
     }
 }
 
 extension Directory {
     public struct Many: FileTreeComponent {
-        public typealias FileType = [DirectoryContents<Component.FileType>]
+        public typealias Content = [DirectoryContents<Component.Content>]
 
         var component: Component
 
-        public init(@FileTreeBuilder content: @Sendable () -> Component) {
-            self.component = content()
+        public init(@FileTreeBuilder component: @Sendable () -> Component) {
+            self.component = component()
         }
 
-        public func read(from url: URL) throws -> [DirectoryContents<Component.FileType>] {
+        public func read(from url: URL) throws -> [DirectoryContents<Component.Content>] {
             @Dependency(\.fileManagerClient) var fileManagerClient
 
             let directoryNames = try fileManagerClient.directories(atPath: url)
@@ -277,7 +277,7 @@ extension Directory {
             }.sorted(by: { $0.directoryName < $1.directoryName })
         }
 
-        public func write(_ data: [DirectoryContents<Component.FileType>], to url: URL) throws {
+        public func write(_ data: [DirectoryContents<Component.Content>], to url: URL) throws {
             guard writingToEmptyDirectory
             else {
                 reportIssue("""
@@ -366,7 +366,7 @@ extension DirectoryContents: Hashable where T: Hashable {}
 
 // MARK: FileTree + SwiftUI
 extension File: FileTreeViewable {
-    public func view(for fileType: Data) -> some View {
+    public func view(for content: Data) -> some View {
         return AnyView(
             FileView(
                 fileName: self.fileName.description,
@@ -390,12 +390,12 @@ extension File.Many: FileTreeViewable {
 }
 
 extension Directory.Many: FileTreeViewable where Component: FileTreeViewable {
-    public func view(for directories: [DirectoryContents<Component.FileType>]) -> some View {
+    public func view(for directories: [DirectoryContents<Component.Content>]) -> some View {
         ForEach(directories, id: \.directoryName) {
             DirectoryView(
                 name: $0.directoryName,
                 data: $0.components,
-                content: self.component,
+                component: self.component,
                 searchItems: [$0.directoryName]
             )
         }
@@ -404,26 +404,26 @@ extension Directory.Many: FileTreeViewable where Component: FileTreeViewable {
 
 extension FileTree: FileTreeViewable where Component: FileTreeViewable {
     @MainActor
-    public func view(for fileType: FileType) -> some View {
-        content.view(for: fileType)
+    public func view(for content: Content) -> some View {
+        component.view(for: content)
     }
 }
 
 extension TupleFileSystemComponent: FileTreeViewable where repeat (each T): FileTreeViewable {
 
     @MainActor
-    public func view(for fileType: (repeat (each T).FileType)) -> some
+    public func view(for content: (repeat (each T).Content)) -> some
     View {
-        TupleView((repeat (each value).view(for: (each fileType))))
+        TupleView((repeat (each value).view(for: (each content))))
     }
 }
 
 extension Directory: FileTreeViewable where Component: FileTreeViewable {
-    public func view(for fileType: Component.FileType) -> some View {
+    public func view(for content: Component.Content) -> some View {
         DirectoryView(
             name: self.path.description,
-            data: fileType,
-            content: self.content,
+            data: content,
+            component: self.component,
             searchItems: [self.path.description]
         )
     }
@@ -435,22 +435,22 @@ struct DirectoryView<F: FileTreeViewable>: View {
 
     var name: String
 
-    var data: F.FileType
+    var data: F.Content
     var searchItems: Set<String>
 
     var subContent: F.ViewBody
 
     init(
         name: String,
-        data: F.FileType,
-        content: F,
+        data: F.Content,
+        component: F,
         searchItems: Set<String>
     ) {
         self.name = name
         self.data = data
         self.searchItems = searchItems
 
-        self.subContent = content.view(for: data)
+        self.subContent = component.view(for: data)
     }
 
     var body: some View {
@@ -473,10 +473,10 @@ struct DirectoryView<F: FileTreeViewable>: View {
 
 import Conversions
 
-extension FileTreeViewable where Body: FileTreeViewable, ViewBody == Body.ViewBody, Body.FileType == FileType {
+extension FileTreeViewable where Body: FileTreeViewable, ViewBody == Body.ViewBody, Body.Content == Content {
     @MainActor
-    public func view(for fileType: FileType) -> Body.ViewBody {
-        self.body.view(for: fileType)
+    public func view(for content: Content) -> Body.ViewBody {
+        self.body.view(for: content)
     }
 }
 
@@ -485,25 +485,25 @@ public struct _TaggedFileTreeComponent<
     Tag: Hashable & Sendable
 >: FileTreeViewable {
     public var fileTree: Child
-    public var tag: @Sendable (Child.FileType) -> Tag
+    public var tag: @Sendable (Child.Content) -> Tag
 
-    public typealias FileType = Child.FileType
+    public typealias Content = Child.Content
 
     @inlinable
-    public func read(from url: URL) throws -> Child.FileType {
+    public func read(from url: URL) throws -> Child.Content {
         try fileTree.read(from: url)
     }
 
     @inlinable
-    public func write(_ data: Child.FileType, to url: URL) throws {
+    public func write(_ data: Child.Content, to url: URL) throws {
         try fileTree.write(data, to: url)
     }
 
     @inlinable
-    public func view(for fileType: FileType) -> some View {
+    public func view(for content: Content) -> some View {
         self.fileTree
-            .view(for: fileType)
-            .tag(tag(fileType))
+            .view(for: content)
+            .tag(tag(content))
     }
 }
 
@@ -514,18 +514,18 @@ extension FileTreeViewable {
     }
 }
 
-extension FileTreeViewable where FileType: Identifiable {
-    public func tag<T: Hashable>(transformID: @Sendable @escaping (FileType.ID) -> T) -> _TaggedFileTreeComponent<Self, T> {
+extension FileTreeViewable where Content: Identifiable {
+    public func tag<T: Hashable>(transformID: @Sendable @escaping (Content.ID) -> T) -> _TaggedFileTreeComponent<Self, T> {
         _TaggedFileTreeComponent(fileTree: self, tag: { transformID($0.id) })
     }
 
-    public func taggedByID() -> _TaggedFileTreeComponent<Self, FileType.ID> where FileType.ID: Sendable {
+    public func taggedByID() -> _TaggedFileTreeComponent<Self, Content.ID> where Content.ID: Sendable {
         _TaggedFileTreeComponent(fileTree: self, tag: { $0.id })
     }
 }
 
 extension Never: FileTreeComponent {
-    public typealias FileType = Never
+    public typealias Content = Never
 }
 
 struct PreviewFileTree: FileTreeViewable {
@@ -553,8 +553,8 @@ struct PreviewFileTree: FileTreeViewable {
 
 extension FileTreeViewable {
     @MainActor
-    public func view(for fileType: FileType, filteringFor searchText: String) -> some View {
-        self.view(for: fileType)
+    public func view(for content: Content, filteringFor searchText: String) -> some View {
+        self.view(for: content)
             .environment(\.fileTreeSearchText, searchText)
     }
 }

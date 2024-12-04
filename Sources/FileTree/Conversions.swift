@@ -56,7 +56,7 @@ import Conversions
 import SwiftUI
 
 public struct MapConversionComponent<Upstream: FileTreeComponent, Downstream: Conversion & Sendable>: FileTreeComponent
-where Downstream.Input == Upstream.FileType, Downstream.Output: Sendable & Equatable {
+where Downstream.Input == Upstream.Content, Downstream.Output: Sendable & Equatable {
     public let upstream: Upstream
     public let downstream: Downstream
 
@@ -87,10 +87,10 @@ extension MapConversionComponent: FileTreeViewable where Upstream: FileTreeViewa
     }
 
     struct ConversionView: View {
-        @State var result: Result<Upstream.FileType, Error>?
+        @State var result: Result<Upstream.Content, Error>?
 
         var upstream: Upstream
-        var downStreamUnapply: @Sendable (Downstream.Output) async throws -> Upstream.FileType
+        var downStreamUnapply: @Sendable (Downstream.Output) async throws -> Upstream.Content
         var value: Downstream.Output
 
         var body: some View {
