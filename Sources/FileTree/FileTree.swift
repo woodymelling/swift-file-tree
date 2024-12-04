@@ -228,7 +228,6 @@ extension File {
 }
 
 // MARK: - Directory
-
 public struct Directory<Component: FileTreeComponent>: FileTreeComponent {
     let path: StaticString
     var component: Component
@@ -258,7 +257,7 @@ public struct Directory<Component: FileTreeComponent>: FileTreeComponent {
 
 extension Directory {
     public struct Many: FileTreeComponent {
-        public typealias Content = [DirectoryContents<Component.Content>]
+        public typealias Content = [DirectoryContent<Component.Content>]
 
         var component: Component
 
@@ -266,18 +265,18 @@ extension Directory {
             self.component = component()
         }
 
-        public func read(from url: URL) throws -> [DirectoryContents<Component.Content>] {
+        public func read(from url: URL) throws -> [DirectoryContent<Component.Content>] {
             @Dependency(\.fileManagerClient) var fileManagerClient
 
             let directoryNames = try fileManagerClient.directories(atPath: url)
 
             return try directoryNames.map {
                 let contents = try component.read(from: $0)
-                return DirectoryContents(directoryName: $0.lastPathComponent, components: contents)
+                return DirectoryContent(directoryName: $0.lastPathComponent, components: contents)
             }.sorted(by: { $0.directoryName < $1.directoryName })
         }
 
-        public func write(_ data: [DirectoryContents<Component.Content>], to url: URL) throws {
+        public func write(_ data: [DirectoryContent<Component.Content>], to url: URL) throws {
             guard writingToEmptyDirectory
             else {
                 reportIssue("""
@@ -350,8 +349,8 @@ public extension FileContent {
 }
 
 
-// MARK: DirectoryContents
-public struct DirectoryContents<T: Sendable>: Sendable {
+// MARK: DirectoryContent
+public struct DirectoryContent<T>  {
     public var directoryName: String
     public var components: T
 
@@ -361,8 +360,17 @@ public struct DirectoryContents<T: Sendable>: Sendable {
     }
 }
 
-extension DirectoryContents: Equatable where T: Equatable {}
-extension DirectoryContents: Hashable where T: Hashable {}
+extension DirectoryContent: Equatable where T: Equatable {}
+extension DirectoryContent: Hashable where T: Hashable {}
+extension DirectoryContent: Sendable where T: Sendable {}
+public extension DirectoryContent {
+    func map<NewComponents>(_ transform: (T) throws -> NewComponents) rethrows -> DirectoryContent<NewComponents> {
+        try DirectoryContent<NewComponents>(
+            directoryName: directoryName,
+            components: transform(self.components)
+        )
+    }
+}
 
 // MARK: FileTree + SwiftUI
 extension File: FileTreeViewable {
@@ -390,7 +398,7 @@ extension File.Many: FileTreeViewable {
 }
 
 extension Directory.Many: FileTreeViewable where Component: FileTreeViewable {
-    public func view(for directories: [DirectoryContents<Component.Content>]) -> some View {
+    public func view(for directories: [DirectoryContent<Component.Content>]) -> some View {
         ForEach(directories, id: \.directoryName) {
             DirectoryView(
                 name: $0.directoryName,

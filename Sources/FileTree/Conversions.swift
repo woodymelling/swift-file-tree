@@ -8,11 +8,127 @@
 import Conversions
 import Foundation
 
-/**
- FileContentConversion {
-     Conversions.YamlConversion(EventDTO.DaySchedule.self)
- }
- */
+// MARK: Converted
+public struct _ConvertedFileTreeComponent<Upstream: FileTreeComponent, Downstream: Conversion & Sendable>: FileTreeComponent
+where Downstream.Input == Upstream.Content, Downstream.Output: Sendable & Equatable {
+    public let upstream: Upstream
+    public let downstream: Downstream
+
+    @inlinable
+    public init(upstream: Upstream, downstream: Downstream) {
+        self.upstream = upstream
+        self.downstream = downstream
+    }
+
+    @inlinable
+    @inline(__always)
+    public func read(from url: URL) throws -> Downstream.Output {
+        try self.downstream.apply(upstream.read(from: url))
+    }
+
+    public func write(_ data: Downstream.Output, to url: URL) throws {
+        try self.upstream.write(downstream.unapply(data), to: url)
+    }
+}
+
+
+extension FileTreeComponent {
+    @inlinable
+    public func convert<C>(_ conversion: C) -> _ConvertedFileTreeComponent<Self, C> {
+        .init(upstream: self, downstream: conversion)
+    }
+
+    public func convert<C>(@ConversionBuilder build: () -> C) -> _ConvertedFileTreeComponent<Self, C> {
+        self.convert(build())
+    }
+}
+
+// MARK: ManyFiles
+public struct _ManyFileMapConversion<NewContent: Sendable, C: Conversion<FileContent<Data>, NewContent>>: FileTreeComponent {
+    public typealias Content = [NewContent]
+
+    let original: File.Many
+    let conversion: C
+
+    public func read(from url: URL) throws -> [NewContent] {
+        let originalContents = try original.read(from: url)
+        return try originalContents.map { fileContent in
+            return try conversion.apply(fileContent)
+        }
+    }
+
+    public func write(_ data: [NewContent], to url: URL) throws {
+        let originalData = try data.map { fileContent in
+            return try conversion.unapply(fileContent)
+        }
+        try original.write(originalData, to: url)
+    }
+}
+
+extension File.Many {
+    public func map<NewContent: Sendable, C: Conversion<FileContent<Data>, NewContent>>(
+        using conversion: C
+    ) -> _ManyFileMapConversion<NewContent, C> {
+        return _ManyFileMapConversion(
+            original: self,
+            conversion: conversion
+        )
+    }
+
+    public func map<NewContent: Sendable, C: Conversion<FileContent<Data>, NewContent>>(
+        @ConversionBuilder build: () -> C
+    ) -> _ManyFileMapConversion<NewContent, C> {
+        return _ManyFileMapConversion(
+            original: self,
+            conversion: build()
+        )
+    }
+}
+
+
+// MARK: ManyDirectories
+public struct _ManyDirectoryMapConversion<Component: FileTreeComponent, NewContent: Sendable, C: Conversion<DirectoryContent<Component.Content>, NewContent>>: FileTreeComponent {
+    public typealias Content = [NewContent]
+
+    let original: Directory<Component>.Many
+    let conversion: C
+
+    public func read(from url: URL) throws -> [NewContent] {
+        let originalContents = try original.read(from: url)
+        return try originalContents.map { dirContent in
+            try conversion.apply(dirContent)
+        }
+    }
+
+    public func write(_ data: [NewContent], to url: URL) throws {
+        let originalData = try data.map { newContent in
+            try conversion.unapply(newContent)
+        }
+        try original.write(originalData, to: url)
+    }
+}
+
+extension Directory.Many {
+    public func map<NewContent: Sendable, C: Conversion<DirectoryContent<Component.Content>, NewContent>>(
+        using conversion: C
+    ) -> _ManyDirectoryMapConversion<Component, NewContent, C> {
+        return _ManyDirectoryMapConversion(
+            original: self,
+            conversion: conversion
+        )
+    }
+    public func map<NewContent: Sendable, C: Conversion<DirectoryContent<Component.Content>, NewContent>>(
+        @ConversionBuilder build: () -> C
+    ) -> _ManyDirectoryMapConversion<Component, NewContent, C> {
+        return _ManyDirectoryMapConversion(
+            original: self,
+            conversion: build()
+        )
+    }
+}
+
+
+// MARK: FileContentConversion
 public struct FileContentConversion<AppliedConversion: Conversion>: Conversion {
     public typealias Input = FileContent<AppliedConversion.Input>
     public typealias Output = FileContent<AppliedConversion.Output>
@@ -38,46 +154,37 @@ public struct FileContentConversion<AppliedConversion: Conversion>: Conversion {
 
 extension FileContentConversion: Sendable where AppliedConversion: Sendable {}
 
-//
-//public struct Map<Upstream: FileTreeComponent, NewOutput: Sendable>: FileTreeComponent {
-//    public let upstream: Upstream
-//    public let transform: @Sendable (Upstream.FileType) throws -> NewOutput
-//
-//    public func read(from url: URL) async throws -> NewOutput {
-//        try await self.transform(upstream.read(from: url))
-//    }
-//
-//    public func write(_ data: NewOutput, to url: URL) async throws {
-//        try await upstream.write(self.transform(data), to: url)
-//    }
-//}
+// MARK: DirectoryContentConversion
+public struct DirectoryContentConversion<AppliedConversion: Conversion>: Conversion {
+    public typealias Input = DirectoryContent<AppliedConversion.Input>
+    public typealias Output = DirectoryContent<AppliedConversion.Output>
 
-import Conversions
-import SwiftUI
+    var conversion: AppliedConversion
 
-public struct MapConversionComponent<Upstream: FileTreeComponent, Downstream: Conversion & Sendable>: FileTreeComponent
-where Downstream.Input == Upstream.Content, Downstream.Output: Sendable & Equatable {
-    public let upstream: Upstream
-    public let downstream: Downstream
-
-    @inlinable
-    public init(upstream: Upstream, downstream: Downstream) {
-        self.upstream = upstream
-        self.downstream = downstream
+    public init(_ conversion: AppliedConversion) {
+        self.conversion = conversion
     }
 
-    @inlinable
-    @inline(__always)
-    public func read(from url: URL) throws -> Downstream.Output {
-        try self.downstream.apply(upstream.read(from: url))
+    public init(@ConversionBuilder build: () -> AppliedConversion) {
+        self.conversion = build()
     }
 
-    public func write(_ data: Downstream.Output, to url: URL) throws {
-        try self.upstream.write(downstream.unapply(data), to: url)
+    public func apply(_ input: DirectoryContent<AppliedConversion.Input>) throws -> DirectoryContent<AppliedConversion.Output> {
+        try input.map { try self.conversion.apply($0) }
+    }
+
+    public func unapply(_ output: DirectoryContent<AppliedConversion.Output>) throws -> DirectoryContent<AppliedConversion.Input> {
+        try output.map { try self.conversion.unapply($0) }
     }
 }
 
-extension MapConversionComponent: FileTreeViewable where Upstream: FileTreeViewable {
+extension DirectoryContentConversion: Sendable where AppliedConversion: Sendable {}
+
+
+// MARK: SwiftUI
+import SwiftUI
+
+extension _ConvertedFileTreeComponent: FileTreeViewable where Upstream: FileTreeViewable {
     public func view(for value: Downstream.Output) -> some View {
         ConversionView(
             upstream: upstream,
@@ -128,16 +235,5 @@ extension Result where Self: Sendable {
         } catch {
             self = .failure(error)
         }
-    }
-}
-
-extension FileTreeComponent {
-    @inlinable
-    public func convert<C>(_ conversion: C) -> MapConversionComponent<Self, C> {
-        .init(upstream: self, downstream: conversion)
-    }
-
-    public func convert<C>(@ConversionBuilder build: () -> C) -> MapConversionComponent<Self, C> {
-        self.convert(build())
     }
 }
