@@ -356,6 +356,10 @@ public struct FileContent<Content> {
     }
 }
 
+extension FileContent: Identifiable {
+    public var id: String { fileName }
+}
+
 public extension FileContent {
     func map<NewContent>(_ transform: (Content) throws -> NewContent) rethrows -> FileContent<NewContent> {
         try FileContent<NewContent>(
@@ -572,28 +576,23 @@ struct PreviewFileTree: FileTreeViewable {
         case otherInfo
     }
 
-    var body: some FileTreeComponent<(Data, Data)> & FileTreeViewable {
+    var body: some FileTreeComponent<(Data, [FileContent<Data>])> & FileTreeViewable {
         StaticDirectory("Dir") {
             StaticFile("Info", "text")
                 .tag(Tag.info)
 
-            StaticFile("OtherInfo", "text")
-                .tag(Tag.otherInfo)
+            StaticDirectory("Contents") {
+
+                Many {
+                    File($0, .text)
+                }
+            }
         }
     }
 }
 
 
 
-
-private struct Content: View {
-    var body: some View {
-        FileTreeView(
-            for: (Data(), Data()),
-            using: PreviewFileTree()
-        )
-    }
-}
 
 extension FileTreeViewable {
     @MainActor
@@ -613,7 +612,10 @@ extension EnvironmentValues {
 
     NavigationSplitView {
         List(selection: $selection) {
-            Content()
+            PreviewFileTree().view(
+                for: (Data(), [])
+            )
+
         }
         .contextMenu(forSelectionType: PreviewFileTree.Tag.self) { selections in
             Button("Click") {

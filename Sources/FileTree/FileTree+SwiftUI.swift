@@ -96,24 +96,6 @@ extension EnvironmentValues {
     @Entry var directoryStyle: any DirectoryStyle = DefaultDirectoryStyle()
 }
 
-private struct Content: View {
-    var body: some View {
-        FileTreeView(
-            for: (Data(), Data()),
-            using: PreviewFileTree()
-        )
-    }
-}
-
-#Preview {
-    NavigationSplitView {
-        List {
-            Content()
-        }
-    } detail: {
-        Text("Content")
-    }
-}
 
 // MARK: - FileDocument
 
