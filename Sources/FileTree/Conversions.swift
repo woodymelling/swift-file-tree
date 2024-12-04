@@ -67,7 +67,7 @@ public struct _ManyFileMapConversion<NewContent: Sendable, C: Conversion<FileCon
 
 extension File.Many {
     public func map<NewContent: Sendable, C: Conversion<FileContent<Data>, NewContent>>(
-        using conversion: C
+        _ conversion: C
     ) -> _ManyFileMapConversion<NewContent, C> {
         return _ManyFileMapConversion(
             original: self,
@@ -110,7 +110,7 @@ public struct _ManyDirectoryMapConversion<Component: FileTreeComponent, NewConte
 
 extension Directory.Many {
     public func map<NewContent: Sendable, C: Conversion<DirectoryContent<Component.Content>, NewContent>>(
-        using conversion: C
+        _ conversion: C
     ) -> _ManyDirectoryMapConversion<Component, NewContent, C> {
         return _ManyDirectoryMapConversion(
             original: self,
