@@ -19,7 +19,7 @@ protocol FileStyle {
 
 public struct FileStyleConfiguration {
     let fileName: String
-    let fileExtension: FileType
+    let fileExtension: String
     let isLoading: Bool
 }
 
@@ -39,7 +39,7 @@ struct FileView: View {
     @Environment(\.fileTreeSearchText) var searchText
 
     var fileName: String
-    var fileType: FileType
+    var fileType: UTFileExtension
     var searchItems: Set<String>
 
     var containsSearchTerm: Bool {
@@ -54,7 +54,7 @@ struct FileView: View {
                 fileStyle.makeBody(
                     configuration: FileStyleConfiguration(
                         fileName: self.fileName,
-                        fileExtension: self.fileType,
+                        fileExtension: self.fileType.identifier,
                         isLoading: false
                     )
                 )
@@ -67,6 +67,7 @@ struct FileView: View {
 
 extension EnvironmentValues {
     @Entry var fileStyle: any FileStyle = DefaultFileStyle()
+    @Entry var directoryStyle: any DirectoryStyle = DefaultDirectoryStyle()
 }
 
 // MARK: - Directory
@@ -84,23 +85,37 @@ public struct DirectoryStyleConfiguration {
 }
 
 struct DefaultDirectoryStyle: DirectoryStyle {
-
     func makeBody(configuration: Configuration) -> some View {
         Label(configuration.path, systemImage: "folder")
     }
 }
 
+// MARK: - FileWrapper
 
+public extension FileTreeComponent {
+    func read(from fileWrapper: FileWrapper) throws -> Content {
+        let tempDirectoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {
+            try? FileManager.default.removeItem(at: tempDirectoryURL)
+        }
+        try fileWrapper.write(to: tempDirectoryURL, options: [], originalContentsURL: nil)
+        return try self.read(from: tempDirectoryURL)
+    }
 
-extension EnvironmentValues {
-    @Entry var directoryStyle: any DirectoryStyle = DefaultDirectoryStyle()
+    func write(_ data: Content) throws -> FileWrapper {
+        let tempDirectoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {
+            try? FileManager.default.removeItem(at: tempDirectoryURL)
+        }
+
+        try $writingToEmptyDirectory.withValue(true) {
+            try self.write(data, to: tempDirectoryURL)
+        }
+
+        let fileWrapper = try FileWrapper(url: tempDirectoryURL, options: .immediate)
+        return fileWrapper
+    }
 }
-
-
-// MARK: - FileDocument
-
-
-import Foundation
 
 
 

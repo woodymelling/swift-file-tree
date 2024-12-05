@@ -14,6 +14,7 @@ import Foundation
 public struct FileManagerClient: Sendable {
     public var data: @Sendable (_ contentsOf: URL) throws -> Data
     public var contentsOfDirectory: @Sendable (_ atPath: URL) throws -> [URL]
+    public var directories: @Sendable (_ atPath: URL) throws -> [URL]
     public var fileExists: @Sendable (_ atPath: URL) -> Bool = { _ in false }
     public var writeData: @Sendable (_ data: Data, _ to: URL) throws -> Void
     public var createDirectory: @Sendable (_ at: URL, _ withIntermediateDirectories: Bool) throws -> Void
@@ -28,6 +29,10 @@ extension FileManagerClient: DependencyKey {
         },
         contentsOfDirectory: {
             try FileManager.default.contentsOfDirectory(at: $0, includingPropertiesForKeys: [])
+        },
+        directories: {
+            let paths = try FileManager.default.contentsOfDirectory(at: $0, includingPropertiesForKeys: [], options: .skipsHiddenFiles)
+            return paths.filter(\.hasDirectoryPath)
         },
         fileExists: {
             FileManager.default.fileExists(atPath: $0.path)

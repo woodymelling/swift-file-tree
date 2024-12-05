@@ -6,36 +6,31 @@ import UniformTypeIdentifiers
 // MARK: Result Builder
 @resultBuilder
 public struct FileTreeBuilder {
-    public static func buildExpression<Content>(_ content: Content) -> Content where Content: FileTreeComponent {
-        content
+    public static func buildExpression<Component>(_ component: Component) -> Component where Component: FileTreeComponent {
+        component
     }
 
-    public static func buildBlock<Content>(_ content: Content) -> Content where Content: FileTreeComponent {
-        content
+    public static func buildBlock<Component>(_ component: Component) -> Component where Component: FileTreeComponent {
+        component
     }
 
-    public static func buildBlock<each Content>(_ content: repeat each Content) -> TupleFileSystemComponent<repeat each Content> where repeat each Content: FileTreeComponent {
-        return TupleFileSystemComponent(repeat each content)
+    public static func buildBlock<each Component>(_ component: repeat each Component) -> TupleFileSystemComponent<repeat each Component> where repeat each Component: FileTreeComponent {
+        return TupleFileSystemComponent(repeat each component)
     }
 }
 
 // MARK: Protocol
-public protocol FileTreeComponent<FileType>: Sendable {
-    associatedtype FileType: Sendable
+public protocol FileTreeComponent<Content>: Sendable {
+    associatedtype Content: Sendable
 
     associatedtype Body
-//    associatedtype ViewBody: View
 
-    func read(from url: URL) throws -> FileType
+    func read(from url: URL) throws -> Content
 
-    func write(_ data: FileType, to url: URL) throws
+    func write(_ data: Content, to url: URL) throws
 
     @FileTreeBuilder
     var body: Body { get }
-//
-//    @ViewBuilder
-//    @MainActor
-//    func view(for fileType: FileType) -> ViewBody
 }
 
 public protocol FileTreeViewable: FileTreeComponent {
@@ -43,7 +38,7 @@ public protocol FileTreeViewable: FileTreeComponent {
 
     @ViewBuilder
     @MainActor
-    func view(for fileType: FileType) -> ViewBody
+    func view(for content: Content) -> ViewBody
 }
 
 
@@ -57,12 +52,12 @@ extension FileTreeComponent where Body == Never {
     }
 }
 
-extension FileTreeComponent where Body: FileTreeComponent, Body.FileType == FileType {
-    public func read(from url: URL) throws -> FileType {
+extension FileTreeComponent where Body: FileTreeComponent, Body.Content == Content {
+    public func read(from url: URL) throws -> Content {
         try body.read(from: url)
     }
 
-    public func write(_ data: FileType, to url: URL) throws {
+    public func write(_ data: Content, to url: URL) throws {
         try body.write(data, to: url)
     }
 
@@ -70,27 +65,22 @@ extension FileTreeComponent where Body: FileTreeComponent, Body.FileType == File
 
 
 import SwiftUI
-//extension FileTreeComponent where ViewBody == Never {
-//    public var view: ViewBody {
-//        return fatalError("Body of \(Self.self) should never be called")
-//    }
-//}
 
-public struct FileTree<Content: FileTreeComponent>: FileTreeComponent {
+public struct FileTree<Component: FileTreeComponent>: FileTreeComponent {
 
-    public var content: Content
-    public typealias FileType = Content.FileType
+    public var component: Component
+    public typealias Content = Component.Content
 
-    public init(@FileTreeBuilder content: () -> Content) {
-        self.content = content()
+    public init(@FileTreeBuilder component: () -> Component) {
+        self.component = component()
     }
 
-    public func read(from url: URL) throws -> Content.FileType {
-        try self.content.read(from: url)
+    public func read(from url: URL) throws -> Component.Content {
+        try self.component.read(from: url)
     }
 
-    public func write(_ data: Content.FileType, to url: URL) throws {
-        try self.content.write(data, to: url)
+    public func write(_ data: Component.Content, to url: URL) throws {
+        try self.component.write(data, to: url)
     }
 }
 
@@ -101,20 +91,29 @@ public struct TupleFileSystemComponent<each T: FileTreeComponent>: FileTreeCompo
         self.value = (repeat each value)
     }
 
-    public typealias FileType = (repeat (each T).FileType)
+    public typealias Content = (repeat (each T).Content)
 
-    public func read(from url: URL) throws -> FileType {
+    public func read(from url: URL) throws -> Content {
         try (repeat (each value).read(from: url))
     }
 
-    public func write(_ data: (repeat (each T).FileType), to url: URL) throws {
+    public func write(_ data: (repeat (each T).Content), to url: URL) throws {
         try (repeat (each value).write((each data), to: url))
     }
 }
 
-public enum FileType: Sendable, Hashable {
+enum UTFileExtension: Sendable, Hashable {
     case utType(UTType)
     case `extension`(FileExtension)
+
+    var identifier: String {
+        switch self {
+        case .utType(let utType):
+            utType.identifier
+        case .extension(let e):
+            e.rawValue
+        }
+    }
 }
 
 public struct FileExtension: ExpressibleByStringLiteral, Sendable, Hashable {
@@ -126,7 +125,7 @@ public struct FileExtension: ExpressibleByStringLiteral, Sendable, Hashable {
 }
 
 extension URL {
-    func appendingPathComponent(_ partialName: String, withType type: FileType) -> URL {
+    func appendingPathComponent(_ partialName: String, withType type: UTFileExtension) -> URL {
         switch type {
         case .utType(let utType):
             self.appendingPathComponent(partialName, conformingTo: utType)
@@ -136,10 +135,11 @@ extension URL {
     }
 }
 
+
 // MARK: - File
-public struct StaticFile: FileTreeComponent {
+public struct File: FileTreeComponent {
     let fileName: StaticString
-    let fileType: FileType
+    let fileType: UTFileExtension
 
     public init(_ fileName: StaticString, _ fileType: UTType) {
         self.fileName = fileName
@@ -166,148 +166,41 @@ public struct StaticFile: FileTreeComponent {
     }
 }
 
+extension File {
+    public struct Many: FileTreeComponent {
+        public typealias Content = [FileContent<Data>]
+        let fileType: UTFileExtension
 
-public struct File: FileTreeComponent {
-    let fileName: String
-    let fileType: FileType
-
-    public init(_ fileName: String, _ fileType: UTType) {
-        self.fileName = fileName
-        self.fileType = .utType(fileType)
-    }
-
-    public init(_ fileName: String, _ fileType: FileExtension) {
-        self.fileName = fileName
-        self.fileType = .extension(fileType)
-    }
-
-    public func read(from url: URL) throws -> FileContent<Data> {
-        @Dependency(\.fileManagerClient) var fileManagerClient
-        let fileUrl = url.appendingPathComponent(fileName, withType: fileType)
-
-        return try FileContent(
-            fileName: self.fileName,
-            data: fileManagerClient.data(contentsOf: fileUrl)
-        )
-    }
-
-    public func write(_ fileContent: FileContent<Data>, to url: URL) throws {
-        @Dependency(\.fileManagerClient) var fileManagerClient
-        let fileURL = url.appendingPathComponent(fileContent.fileName, withType: fileType)
-
-        try fileManagerClient.writeData(data: fileContent.data, to: fileURL)
-    }
-}
-
-
-// MARK: - Directory
-
-public struct StaticDirectory<Content: FileTreeComponent>: FileTreeComponent {
-    let path: StaticString
-    var content: Content
-
-    public init(_ path: StaticString, @FileTreeBuilder content: () -> Content) {
-        self.path = path
-        self.content = content()
-    }
-
-    public func read(from url: URL) throws -> Content.FileType {
-        let directoryURL = url.appending(component: self.path.description)
-
-        return try content.read(from: directoryURL)
-    }
-
-    public func write(_ data: Content.FileType, to url: URL) throws {
-        @Dependency(\.fileManagerClient) var fileManagerClient
-        let directoryPath = url.appending(component: path.description)
-
-        if !fileManagerClient.fileExists(atPath: directoryPath) {
-            try fileManagerClient.createDirectory(at: directoryPath, withIntermediateDirectories: false)
+        public init(withExtension content: UTType) {
+            self.fileType = .utType(content)
         }
 
-        try content.write(data, to: directoryPath)
-    }
-}
+        public init(withExtension content: FileExtension) {
+            self.fileType = .extension(content)
+        }
+        public func read(from url: URL) throws -> [FileContent<Data>] {
 
-public struct Directory<Content: FileTreeComponent>: FileTreeComponent {
-    let path: String
 
-    var content: Content
+            @Dependency(\.fileManagerClient) var fileManagerClient
 
-    public init(_ path: String, @FileTreeBuilder content: () -> Content) {
-        self.path = path
-        self.content = content()
-    }
+            let paths = try fileManagerClient.contentsOfDirectory(atPath: url)
+            let filteredPaths = paths.filter { $0.pathExtension == self.fileType.identifier }
 
-    // This doesn't work because when Content.FileType is a tuple, we want DirectoryContents to have multiple types from that parameter pack
-    public func read(from url: URL) throws -> DirectoryContents<Content.FileType> {
-        let directoryURL = url.appending(component: self.path)
-        let compoents = try content.read(from: directoryURL)
+            return try filteredPaths.map { fileURL in
 
-        return DirectoryContents(
-            directoryName: self.path,
-            components: compoents
-        )
-    }
-
-    public func write(_ directoryContents: DirectoryContents<Content.FileType>, to url: URL) throws {
-        @Dependency(\.fileManagerClient) var fileManagerClient
-        let directoryPath = url.appending(component: path.description)
-
-        try fileManagerClient.createDirectory(at: directoryPath, withIntermediateDirectories: false)
-
-        try content.write(directoryContents.components, to: directoryPath)
-    }
-}
-
-public protocol NamedContentProtocol {
-    var name: String { get }
-}
-
-extension FileContent: NamedContentProtocol {
-    public var name: String {
-        self.fileName
-    }
-}
-
-public struct Many<Content: FileTreeComponent>: FileTreeComponent where Content.FileType: NamedContentProtocol {
-    var content: @Sendable (String) -> Content
-
-    public init(@FileTreeBuilder _ content: @Sendable @escaping (String) -> Content) {
-        self.content = content
-    }
-
-    public func read(from url: URL) throws -> [Content.FileType] {
-        @Dependency(\.fileManagerClient) var fileManagerClient
-
-        let paths = try fileManagerClient.contentsOfDirectory(atPath: url)
-
-        let components = paths.map {
-            content($0.deletingPathExtension().lastPathComponent)
+                let data = try fileManagerClient.data(contentsOf: fileURL)
+                return FileContent(fileName: fileURL.deletingPathExtension().lastPathComponent, data: data)
+            }.sorted { $0.fileName < $1.fileName }
         }
 
-        // TODO: Error Handling
-        // These should all be run in parallel, and then collect all errors
-        return try components.map {
-            try $0.read(from: url)
-        }.sorted {
-            $0.name < $1.name
-        }
-    }
-
-    public func write(_ data: [Content.FileType], to url: URL) throws {
-        @Dependency(\.fileManagerClient) var fileManagerClient
-
-        if writingToEmptyDirectory {
-            try data.forEach {
-                try self.content($0.name).write($0, to: url)
-            }
-        } else {
-            reportIssue("""
-            Writing to directories that may already have contents currently unsupported.
+        public func write(_ data: [FileContent<Data>], to url: URL) throws {
+            guard writingToEmptyDirectory
+            else {
+                reportIssue("""
+            Writing an array of files to a directory that may already have contents currently unsupported.
             
-            This is because it is difficult to determine if a value that does not exist in the array of values getting written should be deleted because it was removed,
-            or if it exists outside of the purview of the `Many { }` block and should be left alone.
+            This is because of the circumstance where a file exists in the directory, but not in the array
+            It is difficult to determine if the file should be deleted, or if it exists outside of the purview of the `Files` block and should be left alone.
             
             The semantics of Many may need to be tweaked to make this determination more clear.
             
@@ -315,53 +208,139 @@ public struct Many<Content: FileTreeComponent>: FileTreeComponent where Content.
             
             ```
             $writingToEmptyDirectory.withValue(true) { 
-                Many { StaticFile($0, "txt").write(...) }
+                Files(withExtension: .text).write([Data(), Data(), Data()]))
             }
             ```
             
             which will naively write all the contents to the directory, and not delete anything that is already there.
             """)
+                return
+            }
 
-            // Diff the current and the old, and if theres changes, write those changes to the file system
-            // This is difficult because there's dynamic content involved here.
-            // I think I may need to use some sort of system where I generate the data into a temp directory,
-            // Diff the new contents with the old contents, and.
+            @Dependency(\.fileManagerClient) var fileManagerClient
 
-            // Could this also work with some sort of flag for when you're writing to an empty directory, so we don't have to do a runaround, in a lot of circumenstances?
+            for fileContent in data {
+                let fileURL = url.appendingPathComponent(fileContent.fileName, withType: self.fileType)
+                try fileManagerClient.writeData(data: fileContent.data, to: fileURL)
+            }
         }
     }
+}
+
+// MARK: - Directory
+public struct Directory<Component: FileTreeComponent>: FileTreeComponent {
+    let path: StaticString
+    var component: Component
+
+    public init(_ path: StaticString, @FileTreeBuilder component: () -> Component) {
+        self.path = path
+        self.component = component()
+    }
+
+    public func read(from url: URL) throws -> Component.Content {
+        let directoryURL = url.appending(component: self.path.description)
+
+        return try component.read(from: directoryURL)
+    }
+
+    public func write(_ data: Component.Content, to url: URL) throws {
+        @Dependency(\.fileManagerClient) var fileManagerClient
+        let directoryPath = url.appending(component: path.description)
+
+        if !fileManagerClient.fileExists(atPath: directoryPath) {
+            try fileManagerClient.createDirectory(at: directoryPath, withIntermediateDirectories: false)
+        }
+
+        try component.write(data, to: directoryPath)
+    }
+}
+
+extension Directory {
+    public struct Many: FileTreeComponent {
+        public typealias Content = [DirectoryContent<Component.Content>]
+
+        var component: Component
+
+        public init(@FileTreeBuilder component: @Sendable () -> Component) {
+            self.component = component()
+        }
+
+        public func read(from url: URL) throws -> [DirectoryContent<Component.Content>] {
+            @Dependency(\.fileManagerClient) var fileManagerClient
+
+            let directoryNames = try fileManagerClient.directories(atPath: url)
+
+            return try directoryNames.map {
+                let contents = try component.read(from: $0)
+                return DirectoryContent(directoryName: $0.lastPathComponent, components: contents)
+            }.sorted(by: { $0.directoryName < $1.directoryName })
+        }
+
+        public func write(_ data: [DirectoryContent<Component.Content>], to url: URL) throws {
+            guard writingToEmptyDirectory
+            else {
+                reportIssue("""
+                Writing a `Many` to a directory that may already have contents currently unsupported.
+                
+                This is because it is difficult to determine if a value that does not exist in the array of values getting written should be deleted because it was removed,
+                or if it exists outside of the purview of the `Many { }` block and should be left alone.
+                
+                The semantics of Many may need to be tweaked to make this determination more clear.
+                
+                To allow writing to the directory, use:
+                
+                ```
+                $writingToEmptyDirectory.withValue(true) { 
+                    Directories { StaticFile($0, "txt") }.write(...)
+                }
+                ```
+                
+                which will naively write all the contents to the directory, and not delete anything that is already there.
+                """)
+                return
+            }
+
+
+            @Dependency(\.fileManagerClient) var fileManagerClient
+
+            if !fileManagerClient.fileExists(atPath: url) {
+                try fileManagerClient.createDirectory(at: url, withIntermediateDirectories: true)
+            }
+
+            for directoryContent in data {
+                let directoryURL = url.appendingPathComponent(directoryContent.directoryName)
+
+                if !fileManagerClient.fileExists(atPath: directoryURL) {
+                    try fileManagerClient.createDirectory(at: directoryURL, withIntermediateDirectories: false)
+                }
+
+                try component.write(directoryContent.components, to: directoryURL)
+            }
+        }
+    }
+
 }
 
 @TaskLocal
 var writingToEmptyDirectory = false
 
-extension Many: FileTreeViewable where Content: FileTreeViewable, Content.FileType: Identifiable, Content.FileType.ID: CustomStringConvertible {
-    public func view(for values: [Content.FileType]) -> some View {
-        ForEach(values) { value in
-            let idString = value.id.description
-            let contentInstance = content(idString)
-            contentInstance.view(for: value)
-        }
-    }
-}
 
 // - MARK: Contents
-public struct FileContent<Content> {
+public struct FileContent<Component> {
     public var fileName: String
-    public var data: Content
+    public var data: Component
 
-    public init(fileName: String, data: Content) {
+    public init(fileName: String, data: Component) {
         self.fileName = fileName
         self.data = data
     }
 }
 
-extension FileContent: Identifiable {
-    public var id: String { fileName }
-}
-
+extension FileContent: Hashable where Component: Hashable {}
+extension FileContent: Sendable where Component: Sendable {}
+extension FileContent: Equatable where Component: Equatable {}
 public extension FileContent {
-    func map<NewContent>(_ transform: (Content) throws -> NewContent) rethrows -> FileContent<NewContent> {
+    func map<NewContent>(_ transform: (Component) throws -> NewContent) rethrows -> FileContent<NewContent> {
         try FileContent<NewContent>(
             fileName: fileName,
             data: transform(self.data)
@@ -369,11 +348,9 @@ public extension FileContent {
     }
 }
 
-extension FileContent: Hashable where Content: Hashable {}
-extension FileContent: Sendable where Content: Sendable {}
-extension FileContent: Equatable where Content: Equatable {}
 
-public struct DirectoryContents<T: Sendable>: Sendable {
+// MARK: DirectoryContent
+public struct DirectoryContent<T>  {
     public var directoryName: String
     public var components: T
 
@@ -383,15 +360,21 @@ public struct DirectoryContents<T: Sendable>: Sendable {
     }
 }
 
-extension DirectoryContents: Equatable where T: Equatable {}
-extension DirectoryContents: Hashable where T: Hashable {}
-
+extension DirectoryContent: Equatable where T: Equatable {}
+extension DirectoryContent: Hashable where T: Hashable {}
+extension DirectoryContent: Sendable where T: Sendable {}
+public extension DirectoryContent {
+    func map<NewComponents>(_ transform: (T) throws -> NewComponents) rethrows -> DirectoryContent<NewComponents> {
+        try DirectoryContent<NewComponents>(
+            directoryName: directoryName,
+            components: transform(self.components)
+        )
+    }
+}
 
 // MARK: FileTree + SwiftUI
-
-extension StaticFile: FileTreeViewable {
-
-    public func view(for fileType: Data) -> some View {
+extension File: FileTreeViewable {
+    public func view(for content: Data) -> some View {
         return AnyView(
             FileView(
                 fileName: self.fileName.description,
@@ -402,50 +385,53 @@ extension StaticFile: FileTreeViewable {
     }
 }
 
-extension File: FileTreeViewable {
-    public func view(for content: FileContent<Data>) -> some View {
-        FileView(
-            fileName: content.fileName,
-            fileType: self.fileType,
-            searchItems: [self.fileName]
-        )
+extension File.Many: FileTreeViewable {
+    public func view(for files: [FileContent<Data>]) -> some View {
+        ForEach(files, id: \.fileName) {
+            FileView(
+                fileName: $0.fileName,
+                fileType: self.fileType,
+                searchItems: [$0.fileName]
+            )
+        }
     }
 }
 
-extension FileTree: FileTreeViewable where Content: FileTreeViewable {
+extension Directory.Many: FileTreeViewable where Component: FileTreeViewable {
+    public func view(for directories: [DirectoryContent<Component.Content>]) -> some View {
+        ForEach(directories, id: \.directoryName) {
+            DirectoryView(
+                name: $0.directoryName,
+                data: $0.components,
+                component: self.component,
+                searchItems: [$0.directoryName]
+            )
+        }
+    }
+}
+
+extension FileTree: FileTreeViewable where Component: FileTreeViewable {
     @MainActor
-    public func view(for fileType: FileType) -> some View {
-        content.view(for: fileType)
+    public func view(for content: Content) -> some View {
+        component.view(for: content)
     }
 }
 
 extension TupleFileSystemComponent: FileTreeViewable where repeat (each T): FileTreeViewable {
 
     @MainActor
-    public func view(for fileType: (repeat (each T).FileType)) -> some
+    public func view(for content: (repeat (each T).Content)) -> some
     View {
-        TupleView((repeat (each value).view(for: (each fileType))))
+        TupleView((repeat (each value).view(for: (each content))))
     }
 }
 
-
-extension Directory: FileTreeViewable where Content: FileTreeViewable {
-    public func view(for fileType: DirectoryContents<Content.FileType>) -> some View {
-        DirectoryView(
-            name: self.path,
-            data: fileType.components,
-            content: self.content,
-            searchItems: [self.path]
-        )
-    }
-}
-
-extension StaticDirectory: FileTreeViewable where Content: FileTreeViewable {
-    public func view(for fileType: Content.FileType) -> some View {
+extension Directory: FileTreeViewable where Component: FileTreeViewable {
+    public func view(for content: Component.Content) -> some View {
         DirectoryView(
             name: self.path.description,
-            data: fileType,
-            content: self.content,
+            data: content,
+            component: self.component,
             searchItems: [self.path.description]
         )
     }
@@ -457,28 +443,27 @@ struct DirectoryView<F: FileTreeViewable>: View {
 
     var name: String
 
-    var data: F.FileType
+    var data: F.Content
     var searchItems: Set<String>
 
     var subContent: F.ViewBody
 
     init(
         name: String,
-        data: F.FileType,
-        content: F,
+        data: F.Content,
+        component: F,
         searchItems: Set<String>
     ) {
-
         self.name = name
         self.data = data
         self.searchItems = searchItems
 
-        self.subContent = content.view(for: data)
+        self.subContent = component.view(for: data)
     }
 
     var body: some View {
         Group(subviews: subContent) { subviews in
-            if !subviews.isEmpty {
+            if searchText.isEmpty || !subviews.isEmpty {
 
                 DisclosureGroup {
                     subContent
@@ -491,33 +476,15 @@ struct DirectoryView<F: FileTreeViewable>: View {
                 }
             }
         }
-
-    }
-}
-
-
-
-
-public struct FileTreeView<FileTree: FileTreeViewable>: View {
-    public init(for value: FileTree.FileType, using fileTree: FileTree) {
-        self.value = value
-        self.fileTree = fileTree
-    }
-
-    public var value: FileTree.FileType
-    public var fileTree: FileTree
-
-    public var body: some View {
-        fileTree.view(for: value)
     }
 }
 
 import Conversions
 
-extension FileTreeViewable where Body: FileTreeViewable, ViewBody == Body.ViewBody, Body.FileType == FileType {
+extension FileTreeViewable where Body: FileTreeViewable, ViewBody == Body.ViewBody, Body.Content == Content {
     @MainActor
-    public func view(for fileType: FileType) -> Body.ViewBody {
-        self.body.view(for: fileType)
+    public func view(for content: Content) -> Body.ViewBody {
+        self.body.view(for: content)
     }
 }
 
@@ -526,25 +493,25 @@ public struct _TaggedFileTreeComponent<
     Tag: Hashable & Sendable
 >: FileTreeViewable {
     public var fileTree: Child
-    public var tag: @Sendable (Child.FileType) -> Tag
+    public var tag: @Sendable (Child.Content) -> Tag
 
-    public typealias FileType = Child.FileType
+    public typealias Content = Child.Content
 
     @inlinable
-    public func read(from url: URL) throws -> Child.FileType {
+    public func read(from url: URL) throws -> Child.Content {
         try fileTree.read(from: url)
     }
 
     @inlinable
-    public func write(_ data: Child.FileType, to url: URL) throws {
+    public func write(_ data: Child.Content, to url: URL) throws {
         try fileTree.write(data, to: url)
     }
 
     @inlinable
-    public func view(for fileType: FileType) -> some View {
+    public func view(for content: Content) -> some View {
         self.fileTree
-            .view(for: fileType)
-            .tag(tag(fileType))
+            .view(for: content)
+            .tag(tag(content))
     }
 }
 
@@ -555,18 +522,18 @@ extension FileTreeViewable {
     }
 }
 
-extension FileTreeViewable where FileType: Identifiable {
-    public func tag<T: Hashable>(transformID: @Sendable @escaping (FileType.ID) -> T) -> _TaggedFileTreeComponent<Self, T> {
+extension FileTreeViewable where Content: Identifiable {
+    public func tag<T: Hashable>(transformID: @Sendable @escaping (Content.ID) -> T) -> _TaggedFileTreeComponent<Self, T> {
         _TaggedFileTreeComponent(fileTree: self, tag: { transformID($0.id) })
     }
 
-    public func taggedByID() -> _TaggedFileTreeComponent<Self, FileType.ID> where FileType.ID: Sendable {
+    public func taggedByID() -> _TaggedFileTreeComponent<Self, Content.ID> where Content.ID: Sendable {
         _TaggedFileTreeComponent(fileTree: self, tag: { $0.id })
     }
 }
 
 extension Never: FileTreeComponent {
-    public typealias FileType = Never
+    public typealias Content = Never
 }
 
 struct PreviewFileTree: FileTreeViewable {
@@ -577,15 +544,13 @@ struct PreviewFileTree: FileTreeViewable {
     }
 
     var body: some FileTreeComponent<(Data, [FileContent<Data>])> & FileTreeViewable {
-        StaticDirectory("Dir") {
-            StaticFile("Info", "text")
+        Directory("Dir") {
+            File("Info", "text")
                 .tag(Tag.info)
 
-            StaticDirectory("Contents") {
+            Directory("Contents") {
 
-                Many {
-                    File($0, .text)
-                }
+                File.Many(withExtension: .text)
             }
         }
     }
@@ -596,8 +561,8 @@ struct PreviewFileTree: FileTreeViewable {
 
 extension FileTreeViewable {
     @MainActor
-    public func view(for fileType: FileType, filteringFor searchText: String) -> some View {
-        self.view(for: fileType)
+    public func view(for content: Content, filteringFor searchText: String) -> some View {
+        self.view(for: content)
             .environment(\.fileTreeSearchText, searchText)
     }
 }
