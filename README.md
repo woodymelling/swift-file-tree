@@ -5,7 +5,8 @@ FileTree is a Swift package that provides a type-safe, declarative way to intera
 ## Features
 
 - Declarative file system structure definition
-- Type-safe file and directory representations
+- Type-safe read and write operations to a directory of that structure
+- Render that same struture to a SwiftUI sidebar
 
 ## Installation
 
@@ -47,42 +48,11 @@ This approach lets you keep your file system logic expressive yet separated from
 business logic. You decide how much detail to expose to the rest of your application, and 
 Swift File Tree takes care of bridging the gap between your on-disk data and in-memory models.
 
-## Topics
-
 ### Essentials
 
 - <doc:GettingStarted>  
   Learn the basics of defining a file tree and interacting with it.
-  
-### Components
 
-- `File`  
-- `Directory`  
-- `File.Many`
-- `Directory.Many`
----
-```
-## Usage
-
-Here's a quick example of how to use FileTree:
-
-```swift
-import FileTree
-
-let structure = Directory("documents") {
-    File("readme", .plaintext)
-    Directory("images") {
-        Many { fileName in
-            File(fileName, .png)
-        }
-    }
-}
-
-// Read the contents of the structure
-let (readme, images) = try await structure.read(from: URL.documentsDirectory).components
-
-let images: [FileContent] = images.components.0
-```
 
 ## Contributing
 
