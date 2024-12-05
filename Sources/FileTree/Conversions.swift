@@ -26,6 +26,8 @@ where Downstream.Input == Upstream.Content, Downstream.Output: Sendable & Equata
         try self.downstream.apply(upstream.read(from: url))
     }
 
+    @inlinable
+    @inline(__always)
     public func write(_ data: Downstream.Output, to url: URL) throws {
         try self.upstream.write(downstream.unapply(data), to: url)
     }
@@ -38,6 +40,8 @@ extension FileTreeComponent {
         .init(upstream: self, downstream: conversion)
     }
 
+    @inlinable
+    @inline(__always)
     public func convert<C>(@ConversionBuilder build: () -> C) -> _ConvertedFileTreeComponent<Self, C> {
         self.convert(build())
     }
@@ -49,6 +53,7 @@ public struct _ManyFileMapConversion<NewContent: Sendable, C: Conversion<FileCon
 
     let original: File.Many
     let conversion: C
+
 
     public func read(from url: URL) throws -> [NewContent] {
         let originalContents = try original.read(from: url)
@@ -93,6 +98,11 @@ public struct _ManyDirectoryMapConversion<Component: FileTreeComponent, NewConte
     let original: Directory<Component>.Many
     let conversion: C
 
+    public init(original: Directory<Component>.Many, conversion: C) {
+        self.original = original
+        self.conversion = conversion
+    }
+
     public func read(from url: URL) throws -> [NewContent] {
         let originalContents = try original.read(from: url)
         return try originalContents.map { dirContent in
@@ -109,6 +119,8 @@ public struct _ManyDirectoryMapConversion<Component: FileTreeComponent, NewConte
 }
 
 extension Directory.Many {
+    @inlinable
+    @inline(__always)
     public func map<NewContent: Sendable, C: Conversion<DirectoryContent<Component.Content>, NewContent>>(
         _ conversion: C
     ) -> _ManyDirectoryMapConversion<Component, NewContent, C> {
@@ -117,6 +129,9 @@ extension Directory.Many {
             conversion: conversion
         )
     }
+
+    @inlinable
+    @inline(__always)
     public func map<NewContent: Sendable, C: Conversion<DirectoryContent<Component.Content>, NewContent>>(
         @ConversionBuilder build: () -> C
     ) -> _ManyDirectoryMapConversion<Component, NewContent, C> {

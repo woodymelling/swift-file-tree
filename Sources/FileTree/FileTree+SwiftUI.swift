@@ -67,6 +67,7 @@ struct FileView: View {
 
 extension EnvironmentValues {
     @Entry var fileStyle: any FileStyle = DefaultFileStyle()
+    @Entry var directoryStyle: any DirectoryStyle = DefaultDirectoryStyle()
 }
 
 // MARK: - Directory
@@ -84,18 +85,10 @@ public struct DirectoryStyleConfiguration {
 }
 
 struct DefaultDirectoryStyle: DirectoryStyle {
-
     func makeBody(configuration: Configuration) -> some View {
         Label(configuration.path, systemImage: "folder")
     }
 }
-
-
-
-extension EnvironmentValues {
-    @Entry var directoryStyle: any DirectoryStyle = DefaultDirectoryStyle()
-}
-
 
 // MARK: - FileWrapper
 
