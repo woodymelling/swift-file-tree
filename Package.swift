@@ -8,13 +8,12 @@ let package = Package(
     platforms: [.macOS(.v15), .iOS(.v18)],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
-        .library(
-            name: "FileTree",
-            targets: ["FileTree"]),
+        .library(name: "FileTree", targets: ["FileTree"]),
         .library(name: "Conversions", targets: ["Conversions"])
     ],
     dependencies: [
         .package(url: "https://github.com/pointfreeco/xctest-dynamic-overlay", from: "1.4.0"),
+        .package(url: "https://github.com/pointfreeco/swift-custom-dump", from: "1.3.3")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -26,7 +25,12 @@ let package = Package(
                 .product(name: "IssueReporting", package: "xctest-dynamic-overlay"),
             ]
         ),
-        .target(name: "Conversions"),
+        .target(
+            name: "Conversions",
+            dependencies: [
+                .product(name: "CustomDump", package: "swift-custom-dump")
+            ]
+        ),
         .testTarget(
             name: "FileTreeTests",
             dependencies: [
