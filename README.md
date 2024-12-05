@@ -50,7 +50,7 @@ Swift File Tree takes care of bridging the gap between your on-disk data and in-
 
 ### Essentials
 
-- <https://github.com/woodymelling/swift-file-tree/blob/main/Sources/FileTree/Documentation.docc/Articles/GettingStarted.md>  
+- [Getting Started](https://github.com/woodymelling/swift-file-tree/blob/main/Sources/FileTree/Documentation.docc/Articles/GettingStarted.md)
   Learn the basics of defining a file tree and interacting with it.
 
 
