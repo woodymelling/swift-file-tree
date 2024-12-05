@@ -1,7 +1,6 @@
 import Foundation
-import Dependencies
-import DependenciesMacros
 import UniformTypeIdentifiers
+import IssueReporting
 
 // MARK: Result Builder
 @resultBuilder
@@ -152,17 +151,15 @@ public struct File: FileTreeComponent {
     }
 
     public func read(from url: URL) throws -> Data {
-        @Dependency(\.fileManagerClient) var fileManagerClient
         let fileUrl = url.appendingPathComponent(fileName.description, withType: fileType)
 
-        return try fileManagerClient.data(contentsOf: fileUrl)
+        return try Data(contentsOf: fileUrl)
     }
 
     public func write(_ data: Data, to url: URL) throws {
-        @Dependency(\.fileManagerClient) var fileManagerClient
         let fileUrl = url.appendingPathComponent(fileName.description, withType: fileType)
 
-        return try fileManagerClient.writeData(data: data, to: fileUrl)
+        return try data.write(to: fileUrl)
     }
 }
 
@@ -179,16 +176,13 @@ extension File {
             self.fileType = .extension(content)
         }
         public func read(from url: URL) throws -> [FileContent<Data>] {
+            let paths = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [])
 
-
-            @Dependency(\.fileManagerClient) var fileManagerClient
-
-            let paths = try fileManagerClient.contentsOfDirectory(atPath: url)
             let filteredPaths = paths.filter { $0.pathExtension == self.fileType.identifier }
 
             return try filteredPaths.map { fileURL in
 
-                let data = try fileManagerClient.data(contentsOf: fileURL)
+                let data = try Data(contentsOf: fileURL)
                 return FileContent(fileName: fileURL.deletingPathExtension().lastPathComponent, data: data)
             }.sorted { $0.fileName < $1.fileName }
         }
@@ -217,11 +211,9 @@ extension File {
                 return
             }
 
-            @Dependency(\.fileManagerClient) var fileManagerClient
-
             for fileContent in data {
                 let fileURL = url.appendingPathComponent(fileContent.fileName, withType: self.fileType)
-                try fileManagerClient.writeData(data: fileContent.data, to: fileURL)
+                try fileContent.data.write(to: fileURL)
             }
         }
     }
@@ -244,11 +236,10 @@ public struct Directory<Component: FileTreeComponent>: FileTreeComponent {
     }
 
     public func write(_ data: Component.Content, to url: URL) throws {
-        @Dependency(\.fileManagerClient) var fileManagerClient
         let directoryPath = url.appending(component: path.description)
 
-        if !fileManagerClient.fileExists(atPath: directoryPath) {
-            try fileManagerClient.createDirectory(at: directoryPath, withIntermediateDirectories: false)
+        if !FileManager.default.fileExists(atPath: directoryPath.path()) {
+            try FileManager.default.createDirectory(at: directoryPath, withIntermediateDirectories: false)
         }
 
         try component.write(data, to: directoryPath)
@@ -266,9 +257,12 @@ extension Directory {
         }
 
         public func read(from url: URL) throws -> [DirectoryContent<Component.Content>] {
-            @Dependency(\.fileManagerClient) var fileManagerClient
 
-            let directoryNames = try fileManagerClient.directories(atPath: url)
+            let directoryNames = try FileManager.default.contentsOfDirectory(
+                at: url,
+                includingPropertiesForKeys: [],
+                options: .skipsHiddenFiles
+            ).filter(\.hasDirectoryPath)
 
             return try directoryNames.map {
                 let contents = try component.read(from: $0)
@@ -301,17 +295,16 @@ extension Directory {
             }
 
 
-            @Dependency(\.fileManagerClient) var fileManagerClient
 
-            if !fileManagerClient.fileExists(atPath: url) {
-                try fileManagerClient.createDirectory(at: url, withIntermediateDirectories: true)
+            if !FileManager.default.fileExists(atPath: url.path()) {
+                try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
             }
 
             for directoryContent in data {
                 let directoryURL = url.appendingPathComponent(directoryContent.directoryName)
 
-                if !fileManagerClient.fileExists(atPath: directoryURL) {
-                    try fileManagerClient.createDirectory(at: directoryURL, withIntermediateDirectories: false)
+                if !FileManager.default.fileExists(atPath: directoryURL.path()) {
+                    try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: false)
                 }
 
                 try component.write(directoryContent.components, to: directoryURL)

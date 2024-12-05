@@ -14,7 +14,6 @@ extension Tag {
     @Tag static var conversion: Self
 }
 
-@Suite(.dependency(\.fileManagerClient, .liveValue))
 final class FileTreeConversionTests {
     var tempDirectoryURL: URL
 

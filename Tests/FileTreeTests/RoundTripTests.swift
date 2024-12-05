@@ -8,7 +8,6 @@
 import Testing
 import Foundation
 import UniformTypeIdentifiers
-import DependenciesTestSupport
 
 @testable import FileTree
 
@@ -18,7 +17,6 @@ extension Tag {
     @Tag static var many: Self
 }
 
-@Suite(.dependency(\.fileManagerClient, .liveValue))
 final class FileTreeTests {
     var tempDirectoryURL: URL
 
