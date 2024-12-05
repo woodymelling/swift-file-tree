@@ -11,10 +11,10 @@ let package = Package(
         .library(
             name: "FileTree",
             targets: ["FileTree"]),
+        .library(name: "Conversions", targets: ["Conversions"])
     ],
     dependencies: [
         .package(url: "https://github.com/pointfreeco/xctest-dynamic-overlay", from: "1.4.0"),
-        .package(url: "https://github.com/woodymelling/swift-parsing", branch: "async-parsing")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -22,10 +22,11 @@ let package = Package(
         .target(
             name: "FileTree",
             dependencies: [
+                "Conversions",
                 .product(name: "IssueReporting", package: "xctest-dynamic-overlay"),
-                .product(name: "Conversions", package: "swift-parsing")
             ]
         ),
+        .target(name: "Conversions"),
         .testTarget(
             name: "FileTreeTests",
             dependencies: [
