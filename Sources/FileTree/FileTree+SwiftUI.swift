@@ -105,7 +105,6 @@ public extension FileTreeComponent {
         defer {
             try? FileManager.default.removeItem(at: tempDirectoryURL)
         }
-        try FileManager.default.createDirectory(at: tempDirectoryURL, withIntermediateDirectories: true)
         try fileWrapper.write(to: tempDirectoryURL, options: [], originalContentsURL: nil)
         return try self.read(from: tempDirectoryURL)
     }
@@ -116,7 +115,6 @@ public extension FileTreeComponent {
             try? FileManager.default.removeItem(at: tempDirectoryURL)
         }
 
-        try FileManager.default.createDirectory(at: tempDirectoryURL, withIntermediateDirectories: true)
         try $writingToEmptyDirectory.withValue(true) {
             try self.write(data, to: tempDirectoryURL)
         }
