@@ -92,21 +92,21 @@ extension File {
     }
 }
 
-public struct FileContent<Component> {
+public struct FileContent<Content> {
     public var fileName: String
-    public var data: Component
+    public var data: Content
 
-    public init(fileName: String, data: Component) {
+    public init(fileName: String, data: Content) {
         self.fileName = fileName
         self.data = data
     }
 }
 
-extension FileContent: Hashable where Component: Hashable {}
-extension FileContent: Sendable where Component: Sendable {}
-extension FileContent: Equatable where Component: Equatable {}
+extension FileContent: Hashable where Content: Hashable {}
+extension FileContent: Sendable where Content: Sendable {}
+extension FileContent: Equatable where Content: Equatable {}
 public extension FileContent {
-    func map<NewContent>(_ transform: (Component) throws -> NewContent) rethrows -> FileContent<NewContent> {
+    func map<NewContent>(_ transform: (Content) throws -> NewContent) rethrows -> FileContent<NewContent> {
         try FileContent<NewContent>(
             fileName: fileName,
             data: transform(self.data)

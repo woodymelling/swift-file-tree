@@ -144,9 +144,9 @@ extension Directory.Many {
 
 
 // MARK: FileContentConversion
-public struct FileContentConversion<AppliedConversion: Conversion>: Conversion {
-    public typealias Input = FileContent<AppliedConversion.Input>
-    public typealias Output = FileContent<AppliedConversion.Output>
+public struct FileContentConversion<I, O, AppliedConversion: Conversion<I, O>>: Conversion {
+    public typealias Input = FileContent<I>
+    public typealias Output = FileContent<O>
 
     var conversion: AppliedConversion
 
@@ -154,15 +154,15 @@ public struct FileContentConversion<AppliedConversion: Conversion>: Conversion {
         self.conversion = converson
     }
 
-    public init(@ConversionBuilder<AppliedConversion.Input, AppliedConversion.Output> build: () -> AppliedConversion) {
+    public init(@ConversionBuilder<I, O> build: () -> AppliedConversion) {
         self.conversion = build()
     }
 
-    public func apply(_ input: FileContent<AppliedConversion.Input>) throws -> FileContent<AppliedConversion.Output> {
+    public func apply(_ input: FileContent<I>) throws -> FileContent<O> {
         try input.map { try self.conversion.apply($0) }
     }
 
-    public func unapply(_ output: FileContent<AppliedConversion.Output>) throws -> FileContent<AppliedConversion.Input> {
+    public func unapply(_ output: FileContent<O>) throws -> FileContent<I> {
         try output.map { try self.conversion.unapply($0) }
     }
 }
