@@ -30,7 +30,7 @@
   /// - Returns: An "un"-transformed input value.
   @Sendable func unapply(_ input: Output) async throws -> Input
 
-  @ConversionBuilder
+  @ConversionBuilder<Input, Output>
   var body: Body { get }
 }
 

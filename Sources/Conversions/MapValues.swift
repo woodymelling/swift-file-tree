@@ -15,7 +15,7 @@ extension Conversions {
             self.transform = transform
         }
 
-        public init(@ConversionBuilder _ build: () -> C) {
+        public init(@ConversionBuilder<C.Input, C.Output> _ build: () -> C) {
             self.transform = build()
         }
 

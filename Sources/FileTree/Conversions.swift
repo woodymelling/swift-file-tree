@@ -42,7 +42,7 @@ extension FileTreeComponent {
 
     @inlinable
     @inline(__always)
-    public func convert<C>(@ConversionBuilder build: () -> C) -> _ConvertedFileTreeComponent<Self, C> {
+    public func convert<NewOutput, C: Conversion<C.Output, NewOutput>>(@ConversionBuilder<C.Output, NewOutput> build: () -> C) -> _ConvertedFileTreeComponent<Self, C> {
         self.convert(build())
     }
 }
@@ -81,7 +81,7 @@ extension File.Many {
     }
 
     public func map<NewContent: Sendable, C: Conversion<FileContent<Data>, NewContent>>(
-        @ConversionBuilder build: () -> C
+        @ConversionBuilder<FileContent<Data>, NewContent> build: () -> C
     ) -> _ManyFileMapConversion<NewContent, C> {
         return _ManyFileMapConversion(
             original: self,
@@ -133,7 +133,7 @@ extension Directory.Many {
     @inlinable
     @inline(__always)
     public func map<NewContent: Sendable, C: Conversion<DirectoryContent<Component.Content>, NewContent>>(
-        @ConversionBuilder build: () -> C
+        @ConversionBuilder<Component.Content, NewContent> build: () -> C
     ) -> _ManyDirectoryMapConversion<Component, NewContent, C> {
         return _ManyDirectoryMapConversion(
             original: self,
@@ -154,7 +154,7 @@ public struct FileContentConversion<AppliedConversion: Conversion>: Conversion {
         self.conversion = converson
     }
 
-    public init(@ConversionBuilder build: () -> AppliedConversion) {
+    public init(@ConversionBuilder<AppliedConversion.Input, AppliedConversion.Output> build: () -> AppliedConversion) {
         self.conversion = build()
     }
 
@@ -180,7 +180,8 @@ public struct DirectoryContentConversion<AppliedConversion: Conversion>: Convers
         self.conversion = conversion
     }
 
-    public init(@ConversionBuilder build: () -> AppliedConversion) {
+    // THIS MANY NOT BE CORRECT, CIRCULAR REFERENCE?
+    public init(@ConversionBuilder<AppliedConversion.Input, AppliedConversion.Output> build: () -> AppliedConversion) {
         self.conversion = build()
     }
 
