@@ -5,7 +5,7 @@
 //  Created by Woodrow Melling on 10/23/24.
 //
 
-import Conversions
+@preconcurrency import Conversions
 import Foundation
 
 // MARK: Converted
@@ -48,7 +48,10 @@ extension FileTreeComponent {
 }
 
 // MARK: ManyFiles
-public struct _ManyFileMapConversion<NewContent: Sendable, C: Conversion<FileContent<Data>, NewContent>>: FileTreeComponent {
+public struct _ManyFileMapConversion<
+    NewContent: Sendable,
+    C: Conversion<FileContent<Data>, NewContent> & Sendable
+>: FileTreeComponent {
     public typealias Content = [NewContent]
 
     let original: File.Many
@@ -92,7 +95,11 @@ extension File.Many {
 
 
 // MARK: ManyDirectories
-public struct _ManyDirectoryMapConversion<Component: FileTreeComponent, NewContent: Sendable, C: Conversion<DirectoryContent<Component.Content>, NewContent>>: FileTreeComponent {
+public struct _ManyDirectoryMapConversion<
+    Component: FileTreeComponent,
+    NewContent: Sendable,
+    C: Conversion<DirectoryContent<Component.Content>, NewContent>& Sendable
+>: FileTreeComponent {
     public typealias Content = [NewContent]
 
     let original: Directory<Component>.Many
