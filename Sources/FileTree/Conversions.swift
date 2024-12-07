@@ -9,8 +9,8 @@
 import Foundation
 
 // MARK: Converted
-public struct _ConvertedFileTreeComponent<Upstream: FileTreeComponent, Downstream: Conversion & Sendable>: FileTreeComponent
-where Downstream.Input == Upstream.Content, Downstream.Output: Sendable & Equatable {
+public struct _ConvertedFileTreeComponent<Upstream: FileTreeComponent, Downstream: Conversion>: FileTreeComponent
+where Downstream.Input == Upstream.Content, Downstream.Output:  Equatable {
     public let upstream: Upstream
     public let downstream: Downstream
 
@@ -34,6 +34,7 @@ where Downstream.Input == Upstream.Content, Downstream.Output: Sendable & Equata
 }
 
 
+
 extension FileTreeComponent {
     @inlinable
     public func convert<C>(_ conversion: C) -> _ConvertedFileTreeComponent<Self, C> {
@@ -49,8 +50,8 @@ extension FileTreeComponent {
 
 // MARK: ManyFiles
 public struct _ManyFileMapConversion<
-    NewContent: Sendable,
-    C: Conversion<FileContent<Data>, NewContent> & Sendable
+    NewContent,
+    C: Conversion<FileContent<Data>, NewContent>
 >: FileTreeComponent {
     public typealias Content = [NewContent]
 
@@ -74,7 +75,7 @@ public struct _ManyFileMapConversion<
 }
 
 extension File.Many {
-    public func map<NewContent: Sendable, C: Conversion<FileContent<Data>, NewContent>>(
+    public func map<NewContent, C: Conversion<FileContent<Data>, NewContent>>(
         _ conversion: C
     ) -> _ManyFileMapConversion<NewContent, C> {
         return _ManyFileMapConversion(
@@ -83,7 +84,7 @@ extension File.Many {
         )
     }
 
-    public func map<NewContent: Sendable, C: Conversion<FileContent<Data>, NewContent>>(
+    public func map<NewContent, C: Conversion<FileContent<Data>, NewContent>>(
         @ConversionBuilder build: () -> C
     ) -> _ManyFileMapConversion<NewContent, C> {
         return _ManyFileMapConversion(
@@ -97,8 +98,8 @@ extension File.Many {
 // MARK: ManyDirectories
 public struct _ManyDirectoryMapConversion<
     Component: FileTreeComponent,
-    NewContent: Sendable,
-    C: Conversion<DirectoryContent<Component.Content>, NewContent>& Sendable
+    NewContent,
+    C: Conversion<DirectoryContent<Component.Content>, NewContent>
 >: FileTreeComponent {
     public typealias Content = [NewContent]
 
@@ -128,7 +129,7 @@ public struct _ManyDirectoryMapConversion<
 extension Directory.Many {
     @inlinable
     @inline(__always)
-    public func map<NewContent: Sendable, C: Conversion<DirectoryContent<Component.Content>, NewContent>>(
+    public func map<NewContent, C: Conversion<DirectoryContent<Component.Content>, NewContent>>(
         _ conversion: C
     ) -> _ManyDirectoryMapConversion<Component, NewContent, C> {
         return _ManyDirectoryMapConversion(
@@ -139,7 +140,7 @@ extension Directory.Many {
 
     @inlinable
     @inline(__always)
-    public func map<NewContent: Sendable, C: Conversion<DirectoryContent<Component.Content>, NewContent>>(
+    public func map<NewContent, C: Conversion<DirectoryContent<Component.Content>, NewContent>>(
         @ConversionBuilder build: () -> C
     ) -> _ManyDirectoryMapConversion<Component, NewContent, C> {
         return _ManyDirectoryMapConversion(
@@ -218,7 +219,7 @@ extension _ConvertedFileTreeComponent: FileTreeViewable where Upstream: FileTree
     struct ConversionView: View {
 
         var upstream: Upstream
-        var downStreamUnapply: @Sendable (Downstream.Output) throws -> Upstream.Content
+        var downStreamUnapply: (Downstream.Output) throws -> Upstream.Content
         var value: Downstream.Output
 
         var result: Result<Upstream.Content, Error> {
@@ -263,7 +264,7 @@ extension _ManyFileMapConversion: FileTreeViewable where File.Many: FileTreeView
 
     struct ConversionView: View {
         var upstream: File.Many
-        var downStreamUnapply: @Sendable (NewContent) throws -> FileContent<Data>
+        var downStreamUnapply: (NewContent) throws -> FileContent<Data>
         var value: [NewContent]
 
         var result: Result<[FileContent<Data>], Error> {
@@ -295,7 +296,7 @@ extension _ManyDirectoryMapConversion: FileTreeViewable where Component: FileTre
 
     struct ConversionView: View {
         var upstream: Directory<Component>.Many
-        var downStreamUnapply: @Sendable (NewContent) throws -> DirectoryContent<Component.Content>
+        var downStreamUnapply: (NewContent) throws -> DirectoryContent<Component.Content>
         var value: [NewContent]
 
         var result: Result<[DirectoryContent<Component.Content>], Error> {
