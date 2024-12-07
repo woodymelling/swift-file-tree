@@ -9,11 +9,11 @@ let package = Package(
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(name: "FileTree", targets: ["FileTree"]),
-        .library(name: "Conversions", targets: ["Conversions"])
     ],
     dependencies: [
         .package(url: "https://github.com/pointfreeco/xctest-dynamic-overlay", from: "1.4.0"),
-        .package(url: "https://github.com/pointfreeco/swift-custom-dump", from: "1.3.3")
+        .package(url: "https://github.com/pointfreeco/swift-custom-dump", from: "1.3.3"),
+        .package(url: "https://github.com/woodymelling/swift-parsing", branch: "conversions")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
@@ -21,14 +21,8 @@ let package = Package(
         .target(
             name: "FileTree",
             dependencies: [
-                "Conversions",
+                .product(name: "Conversions", package: "swift-parsing"),
                 .product(name: "IssueReporting", package: "xctest-dynamic-overlay"),
-            ]
-        ),
-        .target(
-            name: "Conversions",
-            dependencies: [
-                .product(name: "CustomDump", package: "swift-custom-dump")
             ]
         ),
         .testTarget(
