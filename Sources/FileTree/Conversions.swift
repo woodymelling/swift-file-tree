@@ -50,23 +50,23 @@ extension FileTreeComponent {
 
 // MARK: ManyFiles
 public struct _ManyFileMapConversion<
-    NewContent,
-    C: Conversion<FileContent<Data>, NewContent>
->: FileTreeComponent {
-    public typealias Content = [NewContent]
+    Component: FileTreeComponent,
+    C: Conversion
+>: FileTreeComponent where Component.Content == [C.Input] {
+    public typealias Content = [C.Output]
 
-    let original: File.Many
+    let original: Component
     let conversion: C
-
-
-    public func read(from url: URL) throws -> [NewContent] {
+    
+    
+    public func read(from url: URL) throws -> [C.Output] {
         let originalContents = try original.read(from: url)
         return try originalContents.map { fileContent in
-            return try conversion.apply(fileContent)
+            try conversion.apply(fileContent)
         }
     }
-
-    public func write(_ data: [NewContent], to url: URL) throws {
+    
+    public func write(_ data: [C.Output], to url: URL) throws {
         let originalData = try data.map { fileContent in
             return try conversion.unapply(fileContent)
         }
@@ -74,20 +74,29 @@ public struct _ManyFileMapConversion<
     }
 }
 
-extension File.Many {
-    public func map<NewContent, C: Conversion<FileContent<Data>, NewContent>>(
+//
+func foo() {
+
+    let x = File.Many(withExtension: "txt")
+        .convert(Conversions.Identity())
+}
+
+extension FileTreeComponent where Content: Collection {
+    public func convert<NewContent, C>(
         _ conversion: C
-    ) -> _ManyFileMapConversion<NewContent, C> {
-        return _ManyFileMapConversion(
+    ) -> _ManyFileMapConversion<Self, C>
+    where C: Conversion<FileContent<Data>, NewContent> {
+        _ManyFileMapConversion(
             original: self,
             conversion: conversion
         )
     }
 
-    public func map<NewContent, C: Conversion<FileContent<Data>, NewContent>>(
+    public func convert<NewContent, C>(
         @ConversionBuilder build: () -> C
-    ) -> _ManyFileMapConversion<NewContent, C> {
-        return _ManyFileMapConversion(
+    ) -> _ManyFileMapConversion<Self, C>
+    where C: Conversion<FileContent<Data>, NewContent> {
+        _ManyFileMapConversion(
             original: self,
             conversion: build()
         )
@@ -251,38 +260,38 @@ struct ContentErrorView<E: Error>: View {
         }
     }
 }
-
-extension _ManyFileMapConversion: FileTreeViewable where File.Many: FileTreeViewable {
-    @MainActor
-    public func view(for value: [NewContent]) -> some View {
-        ConversionView(
-            upstream: original,
-            downStreamUnapply: conversion.unapply,
-            value: value
-        )
-    }
-
-    struct ConversionView: View {
-        var upstream: File.Many
-        var downStreamUnapply: (NewContent) throws -> FileContent<Data>
-        var value: [NewContent]
-
-        var result: Result<[FileContent<Data>], Error> {
-            Result {
-                try value.map { try downStreamUnapply($0) }
-            }
-        }
-
-        var body: some View {
-            switch result {
-            case .success(let success):
-                upstream.view(for: success)
-            case .failure(let failure):
-                ContentErrorView(error: failure)
-            }
-        }
-    }
-}
+//
+//extension _ManyFileMapConversion: FileTreeViewable where File.Many: FileTreeViewable {
+//    @MainActor
+//    public func view(for value: [NewContent]) -> some View {
+//        ConversionView(
+//            upstream: original,
+//            downStreamUnapply: conversion.unapply,
+//            value: value
+//        )
+//    }
+//
+//    struct ConversionView: View {
+//        var upstream: File.Many
+//        var downStreamUnapply: (NewContent) throws -> FileContent<Data>
+//        var value: [NewContent]
+//
+//        var result: Result<[FileContent<Data>], Error> {
+//            Result {
+//                try value.map { try downStreamUnapply($0) }
+//            }
+//        }
+//
+//        var body: some View {
+//            switch result {
+//            case .success(let success):
+//                upstream.view(for: success)
+//            case .failure(let failure):
+//                ContentErrorView(error: failure)
+//            }
+//        }
+//    }
+//}
 
 extension _ManyDirectoryMapConversion: FileTreeViewable where Component: FileTreeViewable, Directory<Component>.Many: FileTreeViewable {
     @MainActor

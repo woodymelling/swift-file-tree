@@ -159,12 +159,38 @@ public struct _TaggedFileTreeComponent<
 }
 
 
-extension FileTreeViewable {
-    public func tag<T: Hashable>(_ tag: T) -> _TaggedFileTreeComponent<Self, T> {
-        _TaggedFileTreeComponent(fileTree: self, tag: { _ in tag })
+public struct _ManyFileTag<C: Collection, Tag: Hashable, Child: FileTreeComponent<C>>: FileTreeViewable {
+    public typealias Content = C
+
+    let original: Child
+    let tag: @Sendable (C.Element) -> Tag
+
+    public func read(from url: URL) throws -> Child.Content {
+        try original.read(from: url)
+    }
+
+    public func write(_ data: Child.Content, to url: URL) throws {
+        try original.write(data, to: url)
+    }
+
+    public func view(for content: Child.Content) -> some View {
+
     }
 }
 
+import Foundation
+
+//extension FileTreeViewable where Content: Collection {
+//    public func tag<T: Hashable>(_ tag: (Element) -> T) -> _TaggedFileTreeComponent<Self, T> {
+//        _TaggedFileTreeComponent(fileTree: self, tag: { _ in tag })
+//    }
+//}
+
+//extension _ManyFileMapConversion where NewContent: Identifiable {
+//    public func tag<T: Hashable>(transformID: @Sendable @escaping (NewContent.ID) -> T) -> _TaggedFileTreeComponent<Self, T> {
+//
+//    }
+//}
 extension FileTreeViewable where Content: Identifiable {
     public func tag<T: Hashable>(transformID: @Sendable @escaping (Content.ID) -> T) -> _TaggedFileTreeComponent<Self, T> {
         _TaggedFileTreeComponent(fileTree: self, tag: { transformID($0.id) })
@@ -226,6 +252,7 @@ struct FileView: View {
 
     var fileName: String
     var fileType: UTFileExtension
+    var id: AnyHashable?
     var searchItems: Set<String>
 
     var containsSearchTerm: Bool {
@@ -245,6 +272,7 @@ struct FileView: View {
                     )
                 )
             )
+            .tag(id.map { AnyHashable($0) })
         } else {
             EmptyView()
         }
@@ -314,7 +342,7 @@ struct PreviewFileTree: FileTreeViewable {
     var body: some FileTreeComponent<(Data, [FileContent<Data>])> & FileTreeViewable {
         Directory("Dir") {
             File("Info", "text")
-                .tag(Tag.info)
+//                .tag(Tag.info)
 
             Directory("Contents") {
 
