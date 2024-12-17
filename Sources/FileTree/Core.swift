@@ -3,8 +3,8 @@ import UniformTypeIdentifiers
 import IssueReporting
 
 // MARK: Protocol
-public protocol FileTreeComponent<Content>: Sendable {
-    associatedtype Content: Sendable
+public protocol FileTreeComponent<Content> {
+    associatedtype Content 
 
     associatedtype Body
 

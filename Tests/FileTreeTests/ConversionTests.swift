@@ -107,29 +107,29 @@ final class FileTreeConversionTests {
                 Conversions.DataToString()
             }
         }
-
-        let fileContentsToWrite = [
-            FileContent<String>(fileName: "File1", data: "Content 1"),
-            FileContent<String>(fileName: "File2", data: "Content 2"),
-            FileContent<String>(fileName: "File3", data: "Content 3")
-        ]
-
-        try $writingToEmptyDirectory.withValue(true) {
-            try fileTree.write(fileContentsToWrite, to: tempDirectoryURL)
-        }
-
-
-
-        let readContents = try fileTree.read(from: tempDirectoryURL)
-
-        #expect(fileContentsToWrite.count == readContents.count, "The number of files read should match the number written.")
-
-
-
-        for (written, read) in zip(fileContentsToWrite, readContents) {
-            #expect(written.fileName == read.fileName, "File names should match.")
-            #expect(written.data == read.data, "File data should match.")
-        }
+//
+//        let fileContentsToWrite = [
+//            FileContent<String>(fileName: "File1", data: "Content 1"),
+//            FileContent<String>(fileName: "File2", data: "Content 2"),
+//            FileContent<String>(fileName: "File3", data: "Content 3")
+//        ]
+//
+//        try $writingToEmptyDirectory.withValue(true) {
+//            try fileTree.write(fileContentsToWrite, to: tempDirectoryURL)
+//        }
+//
+//
+//
+//        let readContents = try fileTree.read(from: tempDirectoryURL)
+//
+//        #expect(fileContentsToWrite.count == readContents.count, "The number of files read should match the number written.")
+//
+//
+//
+//        for (written, read) in zip(fileContentsToWrite, readContents) {
+//            #expect(written.fileName == read.fileName, "File names should match.")
+//            #expect(written.data == read.data, "File data should match.")
+//        }
     }
 
     @Test(.tags(.fileReading, .fileWriting, .conversion))

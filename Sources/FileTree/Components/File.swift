@@ -95,7 +95,7 @@ extension File {
 public struct FileContent<Component> {
     public var fileName: String
     public var data: Component
-
+    
     public init(fileName: String, data: Component) {
         self.fileName = fileName
         self.data = data

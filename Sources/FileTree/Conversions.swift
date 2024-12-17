@@ -5,12 +5,12 @@
 //  Created by Woodrow Melling on 10/23/24.
 //
 
-import Conversions
+@preconcurrency import Conversions
 import Foundation
 
 // MARK: Converted
-public struct _ConvertedFileTreeComponent<Upstream: FileTreeComponent, Downstream: Conversion & Sendable>: FileTreeComponent
-where Downstream.Input == Upstream.Content, Downstream.Output: Sendable & Equatable {
+public struct _ConvertedFileTreeComponent<Upstream: FileTreeComponent, Downstream: Conversion>: FileTreeComponent
+where Downstream.Input == Upstream.Content, Downstream.Output:  Equatable {
     public let upstream: Upstream
     public let downstream: Downstream
 
@@ -34,6 +34,7 @@ where Downstream.Input == Upstream.Content, Downstream.Output: Sendable & Equata
 }
 
 
+
 extension FileTreeComponent {
     @inlinable
     public func convert<C>(_ conversion: C) -> _ConvertedFileTreeComponent<Self, C> {
@@ -47,101 +48,62 @@ extension FileTreeComponent {
     }
 }
 
-// MARK: ManyFiles
-public struct _ManyFileMapConversion<NewContent: Sendable, C: Conversion<FileContent<Data>, NewContent>>: FileTreeComponent {
-    public typealias Content = [NewContent]
+//// MARK: ManyFiles
+//public struct _MappedFileTreeComponent<
+//    Component: FileTreeComponent,
+//    C: Conversion
+//>: FileTreeComponent where Component.Content == [C.Input] {
+//    public typealias Content = [C.Output]
+//
+//    let original: Component
+//    let conversion: C
+//    
+//    
+//    public func read(from url: URL) throws -> [C.Output] {
+//        let originalContents = try original.read(from: url)
+//        return try originalContents.map { fileContent in
+//            try conversion.apply(fileContent)
+//        }
+//    }
+//    
+//    public func write(_ data: [C.Output], to url: URL) throws {
+//        let originalData = try data.map { fileContent in
+//            return try conversion.unapply(fileContent)
+//        }
+//        try original.write(originalData, to: url)
+//    }
+//}
 
-    let original: File.Many
-    let conversion: C
 
 
-    public func read(from url: URL) throws -> [NewContent] {
-        let originalContents = try original.read(from: url)
-        return try originalContents.map { fileContent in
-            return try conversion.apply(fileContent)
-        }
-    }
+//
+func foo() {
 
-    public func write(_ data: [NewContent], to url: URL) throws {
-        let originalData = try data.map { fileContent in
-            return try conversion.unapply(fileContent)
-        }
-        try original.write(originalData, to: url)
-    }
+    let x = File.Many(withExtension: "txt")
+        .convert(Conversions.Identity())
 }
 
-extension File.Many {
-    public func map<NewContent: Sendable, C: Conversion<FileContent<Data>, NewContent>>(
+extension FileTreeComponent where Content: Collection {
+    public func map<NewContent, C>(
         _ conversion: C
-    ) -> _ManyFileMapConversion<NewContent, C> {
-        return _ManyFileMapConversion(
-            original: self,
-            conversion: conversion
+    ) -> _ConvertedFileTreeComponent<Self, Conversions.MapValues<C>>
+    where C: Conversion<Self.Content.Element, NewContent> {
+        _ConvertedFileTreeComponent(
+            upstream: self,
+            downstream: Conversions.MapValues(conversion)
         )
     }
 
-    public func map<NewContent: Sendable, C: Conversion<FileContent<Data>, NewContent>>(
+    public func map<NewContent, C>(
         @ConversionBuilder build: () -> C
-    ) -> _ManyFileMapConversion<NewContent, C> {
-        return _ManyFileMapConversion(
-            original: self,
-            conversion: build()
+    ) -> _ConvertedFileTreeComponent<Self, C>
+    where C: Conversion<Self.Content.Element, NewContent> {
+        _ConvertedFileTreeComponent(
+            upstream: self,
+            downstream: build()
         )
     }
 }
-
-
-// MARK: ManyDirectories
-public struct _ManyDirectoryMapConversion<Component: FileTreeComponent, NewContent: Sendable, C: Conversion<DirectoryContent<Component.Content>, NewContent>>: FileTreeComponent {
-    public typealias Content = [NewContent]
-
-    let original: Directory<Component>.Many
-    let conversion: C
-
-    public init(original: Directory<Component>.Many, conversion: C) {
-        self.original = original
-        self.conversion = conversion
-    }
-
-    public func read(from url: URL) throws -> [NewContent] {
-        let originalContents = try original.read(from: url)
-        return try originalContents.map { dirContent in
-            try conversion.apply(dirContent)
-        }
-    }
-
-    public func write(_ data: [NewContent], to url: URL) throws {
-        let originalData = try data.map { newContent in
-            try conversion.unapply(newContent)
-        }
-        try original.write(originalData, to: url)
-    }
-}
-
-extension Directory.Many {
-    @inlinable
-    @inline(__always)
-    public func map<NewContent: Sendable, C: Conversion<DirectoryContent<Component.Content>, NewContent>>(
-        _ conversion: C
-    ) -> _ManyDirectoryMapConversion<Component, NewContent, C> {
-        return _ManyDirectoryMapConversion(
-            original: self,
-            conversion: conversion
-        )
-    }
-
-    @inlinable
-    @inline(__always)
-    public func map<NewContent: Sendable, C: Conversion<DirectoryContent<Component.Content>, NewContent>>(
-        @ConversionBuilder build: () -> C
-    ) -> _ManyDirectoryMapConversion<Component, NewContent, C> {
-        return _ManyDirectoryMapConversion(
-            original: self,
-            conversion: build()
-        )
-    }
-}
-
 
 // MARK: FileContentConversion
 public struct FileContentConversion<AppliedConversion: Conversion>: Conversion {
@@ -211,7 +173,7 @@ extension _ConvertedFileTreeComponent: FileTreeViewable where Upstream: FileTree
     struct ConversionView: View {
 
         var upstream: Upstream
-        var downStreamUnapply: @Sendable (Downstream.Output) throws -> Upstream.Content
+        var downStreamUnapply: (Downstream.Output) throws -> Upstream.Content
         var value: Downstream.Output
 
         var result: Result<Upstream.Content, Error> {
@@ -243,70 +205,70 @@ struct ContentErrorView<E: Error>: View {
         }
     }
 }
+//
+//extension _ManyFileMapConversion: FileTreeViewable where File.Many: FileTreeViewable {
+//    @MainActor
+//    public func view(for value: [NewContent]) -> some View {
+//        ConversionView(
+//            upstream: original,
+//            downStreamUnapply: conversion.unapply,
+//            value: value
+//        )
+//    }
+//
+//    struct ConversionView: View {
+//        var upstream: File.Many
+//        var downStreamUnapply: (NewContent) throws -> FileContent<Data>
+//        var value: [NewContent]
+//
+//        var result: Result<[FileContent<Data>], Error> {
+//            Result {
+//                try value.map { try downStreamUnapply($0) }
+//            }
+//        }
+//
+//        var body: some View {
+//            switch result {
+//            case .success(let success):
+//                upstream.view(for: success)
+//            case .failure(let failure):
+//                ContentErrorView(error: failure)
+//            }
+//        }
+//    }
+//}
 
-extension _ManyFileMapConversion: FileTreeViewable where File.Many: FileTreeViewable {
-    @MainActor
-    public func view(for value: [NewContent]) -> some View {
-        ConversionView(
-            upstream: original,
-            downStreamUnapply: conversion.unapply,
-            value: value
-        )
-    }
-
-    struct ConversionView: View {
-        var upstream: File.Many
-        var downStreamUnapply: @Sendable (NewContent) throws -> FileContent<Data>
-        var value: [NewContent]
-
-        var result: Result<[FileContent<Data>], Error> {
-            Result {
-                try value.map { try downStreamUnapply($0) }
-            }
-        }
-
-        var body: some View {
-            switch result {
-            case .success(let success):
-                upstream.view(for: success)
-            case .failure(let failure):
-                ContentErrorView(error: failure)
-            }
-        }
-    }
-}
-
-extension _ManyDirectoryMapConversion: FileTreeViewable where Component: FileTreeViewable, Directory<Component>.Many: FileTreeViewable {
-    @MainActor
-    public func view(for value: [NewContent]) -> some View {
-        ConversionView(
-            upstream: original,
-            downStreamUnapply: conversion.unapply,
-            value: value
-        )
-    }
-
-    struct ConversionView: View {
-        var upstream: Directory<Component>.Many
-        var downStreamUnapply: @Sendable (NewContent) throws -> DirectoryContent<Component.Content>
-        var value: [NewContent]
-
-        var result: Result<[DirectoryContent<Component.Content>], Error> {
-            Result {
-                try value.map { try downStreamUnapply($0) }
-            }
-        }
-
-        var body: some View {
-            switch result {
-            case .success(let success):
-                upstream.view(for: success)
-            case .failure(let failure):
-                ContentErrorView(error: failure)
-            }
-        }
-    }
-}
+//extension _ManyDirectoryMapConversion: FileTreeViewable where Component: FileTreeViewable, Directory<Component>.Many: FileTreeViewable {
+//    @MainActor
+//    public func view(for value: [NewContent]) -> some View {
+//        ConversionView(
+//            upstream: original,
+//            downStreamUnapply: conversion.unapply,
+//            value: value
+//        )
+//    }
+//
+//    struct ConversionView: View {
+//        var upstream: Directory<Component>.Many
+//        var downStreamUnapply: (NewContent) throws -> DirectoryContent<Component.Content>
+//        var value: [NewContent]
+//
+//        var result: Result<[DirectoryContent<Component.Content>], Error> {
+//            Result {
+//                try value.map { try downStreamUnapply($0) }
+//            }
+//        }
+//
+//        var body: some View {
+//            switch result {
+//            case .success(let success):
+//                upstream.view(for: success)
+//            case .failure(let failure):
+//                ContentErrorView(error: failure)
+//            }
+//        }
+//    }
+//}
 
 extension Result where Self: Sendable {
     init(sendable operation: @Sendable () async throws(Failure) -> Success) async {

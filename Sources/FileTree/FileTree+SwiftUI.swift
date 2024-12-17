@@ -7,8 +7,9 @@
 
 #if canImport(SwiftUI)
 import SwiftUI
+import Foundation
 
-public protocol FileTreeViewable: FileTreeComponent {
+public protocol FileTreeViewable<Content>: FileTreeComponent {
     associatedtype ViewBody: View
 
     @ViewBuilder
@@ -18,24 +19,14 @@ public protocol FileTreeViewable: FileTreeComponent {
 
 extension File: FileTreeViewable {
     public func view(for content: Data) -> some View {
-        return AnyView(
-            FileView(
-                fileName: self.fileName.description,
-                fileType: self.fileType,
-                searchItems: [fileName.description]
-            )
-        )
+        FileContentView(fileName: self.fileName.description)
     }
 }
 
 extension File.Many: FileTreeViewable {
     public func view(for files: [FileContent<Data>]) -> some View {
         ForEach(files, id: \.fileName) {
-            FileView(
-                fileName: $0.fileName,
-                fileType: self.fileType,
-                searchItems: [$0.fileName]
-            )
+            FileContentView(fileName: $0.fileName)
         }
     }
 }
@@ -46,8 +37,7 @@ extension Directory.Many: FileTreeViewable where Component: FileTreeViewable {
             DirectoryView(
                 name: $0.directoryName,
                 data: $0.components,
-                component: self.component,
-                searchItems: [$0.directoryName]
+                component: self.component
             )
         }
     }
@@ -60,6 +50,7 @@ extension FileTree: FileTreeViewable where Component: FileTreeViewable {
     }
 }
 
+
 extension TupleFileSystemComponent: FileTreeViewable where repeat (each T): FileTreeViewable {
 
     @MainActor
@@ -71,58 +62,53 @@ extension TupleFileSystemComponent: FileTreeViewable where repeat (each T): File
 
 extension Directory: FileTreeViewable where Component: FileTreeViewable {
     public func view(for content: Component.Content) -> some View {
+        @Environment(\.directory) var fileStyle
         DirectoryView(
             name: self.path.description,
             data: content,
-            component: self.component,
-            searchItems: [self.path.description]
+            component: self.component
         )
     }
 }
 
+extension EnvironmentValues {
+    @Entry var directory: Bool = false
+}
+
 struct DirectoryView<F: FileTreeViewable>: View {
     @Environment(\.directoryStyle) var directoryStyle
-    @Environment(\.fileTreeSearchText) var searchText
 
     var name: String
 
     var data: F.Content
-    var searchItems: Set<String>
 
     var subContent: F.ViewBody
 
     init(
         name: String,
         data: F.Content,
-        component: F,
-        searchItems: Set<String>
+        component: F
     ) {
         self.name = name
         self.data = data
-        self.searchItems = searchItems
 
         self.subContent = component.view(for: data)
     }
 
     var body: some View {
-        Group(subviews: subContent) { subviews in
-            if searchText.isEmpty || !subviews.isEmpty {
-
-                DisclosureGroup {
-                    subContent
-                } label: {
-                    AnyView(directoryStyle.makeBody(
-                        configuration: DirectoryStyleConfiguration(
-                            path: name
-                        )
-                    ))
-                }
-            }
+        DisclosureGroup {
+            subContent
+        } label: {
+            AnyView(directoryStyle.makeBody(
+                configuration: DirectoryStyleConfiguration(
+                    path: name
+                )
+            ))
         }
+        .tag(PreviewFileTree.Tag.info)
     }
 }
 
-import Conversions
 
 extension FileTreeViewable where Body: FileTreeViewable, ViewBody == Body.ViewBody, Body.Content == Content {
     @MainActor
@@ -154,16 +140,67 @@ public struct _TaggedFileTreeComponent<
     public func view(for content: Content) -> some View {
         self.fileTree
             .view(for: content)
+//            .compositingGroup()
             .tag(tag(content))
     }
 }
 
 
+public struct _TaggedArrayFileTreeComponent<
+    Component: FileTreeViewable,
+    Element,
+    Tag: Hashable
+>: FileTreeViewable where Component.Content == Array<Element> {
+    public typealias Content = Component.Content
+
+    let original: Component
+    let tag: (Component.Content.Element) -> Tag
+
+    public func read(from url: URL) throws -> Content {
+        try original.read(from: url)
+    }
+
+    public func write(_ data: Content, to url: URL) throws {
+        try original.write(data, to: url)
+    }
+
+    /**
+    Workaround: `original.view(for:)` generates a collection of views, likely using a `ForEach` internally.
+    SwiftUI does not allow direct access to those individual child views to modify them, such as applying `.tag`.
+    To work around this, we call `original.view(for:)` multiple times, passing single-element arrays `[value]`.
+    This forces `original` to render one child view at a time, allowing us to tag each view individually.
+
+    --- Implications ---
+    1. **Redundant Calls:** Calling `original.view(for:)` for each child duplicates work
+    2. **Double Iteration:** The array is iterated twice: once here and once internally by `original.view(for:)`.
+    3. **Behavior Mismatch:** If `original.view(for:)` depends on the full array (e.g., sorting or grouping), passing single-element arrays may cause inconsistencies.
+
+    This approach works but should be revisited if SwiftUI offers better ways to intercept or modify child views.
+
+     I attempted to use `Group(subviews: ) { }` and re-ForEaching to solve this problem, but it caused bugs where the contents of a directory got highlighted when the directory itself got highlighted
+     This was maybe because the tag on the parent view was somehow getting applied to each child view that was gener
+     */
+    public func view(for values: [Content.Element]) -> some View {
+        ForEach(values.map { ($0, tag($0)) }, id: \.1) { value, tag in
+            original
+                .view(for: [value])
+                .tag(tag)
+        }
+    }
+}
+
 extension FileTreeViewable {
     public func tag<T: Hashable>(_ tag: T) -> _TaggedFileTreeComponent<Self, T> {
         _TaggedFileTreeComponent(fileTree: self, tag: { _ in tag })
     }
+
+    public func tag<Element, T: Hashable>(
+        _ tag: @escaping (Content.Element) -> T
+    ) -> _TaggedArrayFileTreeComponent<Self, Element, T> where Content == Array<Element> {
+        _TaggedArrayFileTreeComponent(original: self, tag: tag)
+    }
 }
+
 
 extension FileTreeViewable where Content: Identifiable {
     public func tag<T: Hashable>(transformID: @Sendable @escaping (Content.ID) -> T) -> _TaggedFileTreeComponent<Self, T> {
@@ -175,6 +212,7 @@ extension FileTreeViewable where Content: Identifiable {
     }
 }
 
+
 extension Never: FileTreeComponent {
     public typealias Content = Never
 }
@@ -182,6 +220,7 @@ extension Never: FileTreeComponent {
 extension FileTreeViewable {
     @MainActor
     public func view(for content: Content, filteringFor searchText: String) -> some View {
+
         self.view(for: content)
             .environment(\.fileTreeSearchText, searchText)
     }
@@ -205,8 +244,6 @@ protocol FileStyle {
 
 public struct FileStyleConfiguration {
     let fileName: String
-    let fileExtension: String
-    let isLoading: Bool
 }
 
 struct DefaultFileStyle: FileStyle {
@@ -220,36 +257,19 @@ struct DefaultFileStyle: FileStyle {
     }
 }
 
-struct FileView: View {
+struct FileContentView: View {
     @Environment(\.fileStyle) var fileStyle
-    @Environment(\.fileTreeSearchText) var searchText
 
     var fileName: String
-    var fileType: UTFileExtension
-    var searchItems: Set<String>
-
-    var containsSearchTerm: Bool {
-        searchItems.contains(where: {
-            $0.range(of: searchText, options: .caseInsensitive) != nil
-        }) 
-    }
 
     var body: some View {
-        if searchText.isEmpty || containsSearchTerm {
-            AnyView(
-                fileStyle.makeBody(
-                    configuration: FileStyleConfiguration(
-                        fileName: self.fileName,
-                        fileExtension: self.fileType.identifier,
-                        isLoading: false
-                    )
-                )
-            )
-        } else {
-            EmptyView()
-        }
+        AnyView(fileStyle.makeBody(
+            configuration: FileStyleConfiguration(fileName: self.fileName)
+        ))
     }
 }
+
+
 
 extension EnvironmentValues {
     @Entry var fileStyle: any FileStyle = DefaultFileStyle()
@@ -275,6 +295,15 @@ struct DefaultDirectoryStyle: DirectoryStyle {
         Label(configuration.path, systemImage: "folder")
     }
 }
+
+//
+//extension _MappedFileTreeComponent: FileTreeViewable where Component: FileTreeViewable {
+//
+//    public func view(for content: [C.Output]) -> some View {
+//        original.view(for: content.map { try! conversion.unapply($0) })
+//    }
+//
+//}
 
 // MARK: - FileWrapper
 
@@ -303,36 +332,47 @@ public extension FileTreeComponent {
     }
 }
 
+import Conversions
 
 // MARK: - Preview
 struct PreviewFileTree: FileTreeViewable {
-    enum Tag {
+    enum Tag: Hashable {
         case info
-        case otherInfo
+        case info2
+        case info3
+        case list(String)
+        case contents
+        case dir
     }
 
-    var body: some FileTreeComponent<(Data, [FileContent<Data>])> & FileTreeViewable {
+    var body: some FileTreeViewable<([FileContent<Data>])> {
         Directory("Dir") {
-            File("Info", "text")
-                .tag(Tag.info)
 
-            Directory("Contents") {
-
-                File.Many(withExtension: .text)
-            }
+            File.Many(withExtension: .text)
+                .map(FileContentConversion(Conversions.Identity<Data>()))
+                .tag { Tag.list($0.fileName) }
+//            .tag(Tag.contents)
         }
+//        .tag(Tag.dir)
     }
 }
 
 #Preview {
-    @Previewable @State var selection: PreviewFileTree.Tag?
+    @Previewable @State var selection: Set<PreviewFileTree.Tag> = []
 
     NavigationSplitView {
         List(selection: $selection) {
             PreviewFileTree().view(
-                for: (Data(), [FileContent(fileName: "File1", data: Data())])
+                for: (
+//                    Data(),
+//                    Data(),
+//                    Data(),
+                    [
+                        FileContent(fileName: "File1", data: Data()),
+                        FileContent(fileName: "File2", data: Data())
+                    ]
+                )
             )
-
         }
         .contextMenu(forSelectionType: PreviewFileTree.Tag.self) { selections in
             Button("Click") {
@@ -342,16 +382,41 @@ struct PreviewFileTree: FileTreeViewable {
             print("PRIMARY ACTION:", selections)
         }
     } detail: {
-        switch selection {
-        case .info:
+        Text("\(selection)")
+    }
+}
+
+
+
+#Preview("Vanilla") {
+    @Previewable @State var selection: Set<PreviewFileTree.Tag> = []
+
+    NavigationSplitView {
+        List(selection: $selection) {
             Text("Info")
-        case .otherInfo:
-            Text("OTHER INFO")
-        case nil:
-            Text("None Selected")
+                .tag(PreviewFileTree.Tag.info)
+
+            Text("Info2")
+                .tag(PreviewFileTree.Tag.info2)
+
+            DisclosureGroup("Info3") {
+                ForEach(1..<5, id: \.self) { id in
+                    Text("Info")
+                        .tag(PreviewFileTree.Tag.list(String(id)))
+
+                }
+            }
+            .tag(PreviewFileTree.Tag.info3)
         }
+        .contextMenu(forSelectionType: PreviewFileTree.Tag.self) { selections in
+            Button("Click") {
+                print("Clieck", selections)
+            }
+        } primaryAction: { selections in
+            print("PRIMARY ACTION:", selections)
+        }
+    } detail: {
+        Text("\(selection)")
     }
 }
 #endif
-
-
