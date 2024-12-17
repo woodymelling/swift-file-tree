@@ -7,6 +7,7 @@
 
 #if canImport(SwiftUI)
 import SwiftUI
+import Foundation
 
 public protocol FileTreeViewable<Content>: FileTreeComponent {
     associatedtype ViewBody: View
@@ -61,7 +62,6 @@ extension TupleFileSystemComponent: FileTreeViewable where repeat (each T): File
 
 extension Directory: FileTreeViewable where Component: FileTreeViewable {
     public func view(for content: Component.Content) -> some View {
-
         @Environment(\.directory) var fileStyle
         DirectoryView(
             name: self.path.description,
@@ -105,6 +105,7 @@ struct DirectoryView<F: FileTreeViewable>: View {
                 )
             ))
         }
+        .tag(PreviewFileTree.Tag.info)
     }
 }
 
@@ -139,6 +140,7 @@ public struct _TaggedFileTreeComponent<
     public func view(for content: Content) -> some View {
         self.fileTree
             .view(for: content)
+//            .compositingGroup()
             .tag(tag(content))
     }
 }
@@ -162,16 +164,30 @@ public struct _TaggedArrayFileTreeComponent<
         try original.write(data, to: url)
     }
 
+    /**
+    Workaround: `original.view(for:)` generates a collection of views, likely using a `ForEach` internally.
+    SwiftUI does not allow direct access to those individual child views to modify them, such as applying `.tag`.
+    To work around this, we call `original.view(for:)` multiple times, passing single-element arrays `[value]`.
+    This forces `original` to render one child view at a time, allowing us to tag each view individually.
+
+    --- Implications ---
+    1. **Redundant Calls:** Calling `original.view(for:)` for each child duplicates work
+    2. **Double Iteration:** The array is iterated twice: once here and once internally by `original.view(for:)`.
+    3. **Behavior Mismatch:** If `original.view(for:)` depends on the full array (e.g., sorting or grouping), passing single-element arrays may cause inconsistencies.
+
+    This approach works but should be revisited if SwiftUI offers better ways to intercept or modify child views.
+
+     I attempted to use `Group(subviews: ) { }` and re-ForEaching to solve this problem, but it caused bugs where the contents of a directory got highlighted when the directory itself got highlighted
+     This was maybe because the tag on the parent view was somehow getting applied to each child view that was gener
+     */
     public func view(for values: [Content.Element]) -> some View {
-        Group(subviews: original.view(for: values)) { views in
-            ForEach(zip(views, values).map { ($0, tag($1)) }, id: \.1) { view, tag in
-                view.tag(tag)
-            }
+        ForEach(values.map { ($0, tag($0)) }, id: \.1) { value, tag in
+            original
+                .view(for: [value])
+                .tag(tag)
         }
     }
 }
-
-import Foundation
 
 extension FileTreeViewable {
     public func tag<T: Hashable>(_ tag: T) -> _TaggedFileTreeComponent<Self, T> {
@@ -326,29 +342,18 @@ struct PreviewFileTree: FileTreeViewable {
         case info3
         case list(String)
         case contents
+        case dir
     }
 
-    var body: some FileTreeViewable<(/*Data, */Data, Data, [FileContent<Data>])> {
+    var body: some FileTreeViewable<([FileContent<Data>])> {
         Directory("Dir") {
-//            File("Info", "text")
-//                .convert(Conversions.Identity<Data>())
-//                .tag(Tag.info)
 
-            File("Info", "text")
-                .convert(Conversions.Identity<Data>())
-                .tag(Tag.info2)
-
-            File("Info", "text")
-                .convert(Conversions.Identity<Data>())
-                .tag(Tag.info3)
-
-            Directory("Contents") {
-                File.Many(withExtension: .text)
-                    .map(FileContentConversion(Conversions.Identity<Data>()))
-                    .tag { Tag.list($0.fileName) }
-            }
-            .tag(Tag.contents)
+            File.Many(withExtension: .text)
+                .map(FileContentConversion(Conversions.Identity<Data>()))
+                .tag { Tag.list($0.fileName) }
+//            .tag(Tag.contents)
         }
+//        .tag(Tag.dir)
     }
 }
 
@@ -360,8 +365,8 @@ struct PreviewFileTree: FileTreeViewable {
             PreviewFileTree().view(
                 for: (
 //                    Data(),
-                    Data(),
-                    Data(),
+//                    Data(),
+//                    Data(),
                     [
                         FileContent(fileName: "File1", data: Data()),
                         FileContent(fileName: "File2", data: Data())
@@ -415,5 +420,3 @@ struct PreviewFileTree: FileTreeViewable {
     }
 }
 #endif
-
-
