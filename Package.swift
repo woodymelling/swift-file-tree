@@ -13,7 +13,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/pointfreeco/xctest-dynamic-overlay", from: "1.4.0"),
         .package(url: "https://github.com/pointfreeco/swift-custom-dump", from: "1.3.3"),
-        .package(url: "https://github.com/woodymelling/swift-parsing", branch: "0.1.0")
+        .package(url: "https://github.com/woodymelling/swift-parsing", from: "0.1.0")
     ],
     targets: [
         // Targets are the basic building blocks of a package, defining a module or a test suite.
