@@ -1,5 +1,5 @@
 {
-  "originHash" : "e13aedfb1b3277cd73f047c11d12979a4e8713de7522ef91bac59a5bd555498c",
+  "originHash" : "3bee63a89a4fa8f240e4114f8d87c9eeba8362e426c4eb499967e05e8ef3c9b8",
   "pins" : [
     {
       "identity" : "swift-case-paths",
@@ -24,8 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/woodymelling/swift-parsing",
       "state" : {
-        "branch" : "0.1.0",
-        "revision" : "c0249cbebab111490fcf0735b8f05fc51911f084"
+        "revision" : "c0249cbebab111490fcf0735b8f05fc51911f084",
+        "version" : "0.1.0"
       }
     },
     {
