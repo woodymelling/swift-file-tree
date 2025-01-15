@@ -76,13 +76,6 @@ extension FileTreeComponent {
 
 
 
-//
-func foo() {
-
-    let x = File.Many(withExtension: "txt")
-        .convert(Conversions.Identity())
-}
-
 extension FileTreeComponent where Content: Collection {
     public func map<NewContent, C>(
         _ conversion: C
