@@ -39,7 +39,11 @@ public struct File: FileTreeComponent {
 extension File {
     public struct Many: FileTreeComponent {
         public typealias Content = [FileContent<Data>]
-        let fileType: UTFileExtension
+        let fileType: UTFileExtension?
+
+        public init() {
+            self.fileType = nil
+        }
 
         public init(withExtension content: UTType) {
             self.fileType = .utType(content)
@@ -48,12 +52,17 @@ extension File {
         public init(withExtension content: FileExtension) {
             self.fileType = .extension(content)
         }
+
         public func read(from url: URL) throws -> [FileContent<Data>] {
-            let paths = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [])
+            var paths = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [])
 
-            let filteredPaths = paths.filter { $0.pathExtension == self.fileType.identifier }
+            if let fileType {
+                paths = paths.filter { $0.pathExtension == fileType.identifier }
+            }
 
-            return try filteredPaths.map { fileURL in
+//            let filteredPaths = paths.filter { $0.pathExtension == self.fileType.identifier }
+
+            return try paths.map { fileURL in
 
                 let data = try Data(contentsOf: fileURL)
                 return FileContent(fileName: fileURL.deletingPathExtension().lastPathComponent, data: data)
@@ -85,7 +94,13 @@ extension File {
             }
 
             for fileContent in data {
-                let fileURL = url.appendingPathComponent(fileContent.fileName, withType: self.fileType)
+
+                let fileURL = if let fileType {
+                    url.appendingPathComponent(fileContent.fileName, withType: fileType)
+                } else {
+                    url.appending(path: fileContent.fileName)
+                }
+
                 try fileContent.data.write(to: fileURL)
             }
         }
