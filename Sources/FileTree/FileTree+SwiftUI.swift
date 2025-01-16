@@ -50,13 +50,19 @@ extension FileTree: FileTreeViewable where Component: FileTreeViewable {
     }
 }
 
-
-extension TupleFileSystemComponent: FileTreeViewable where repeat (each T): FileTreeViewable {
-
+//
+// extension TupleFileSystemComponent: FileTreeViewable where repeat (each T): FileTreeViewable {
+//
+//     @MainActor
+//     public func view(for content: (repeat (each T).Content)) -> some
+//     View {
+//         TupleView((repeat (each value).view(for: (each content))))
+//     }
+// }
+extension PairFileTreeComponent: FileTreeViewable where F1: FileTreeViewable, F2: FileTreeViewable {
     @MainActor
-    public func view(for content: (repeat (each T).Content)) -> some
-    View {
-        TupleView((repeat (each value).view(for: (each content))))
+    public func view(for content: (F1.Content, F2.Content)) -> some View {
+        TupleView((value.0.view(for: (content.0)), value.1.view(for: (content.1))))
     }
 }
 
@@ -348,7 +354,7 @@ struct PreviewFileTree: FileTreeViewable {
     var body: some FileTreeViewable<([FileContent<Data>])> {
         Directory("Dir") {
 
-            File.Many(withExtension: .text)
+            File.Many(withExtension: "txt")
                 .map(FileContentConversion(Conversions.Identity<Data>()))
                 .tag { Tag.list($0.fileName) }
 //            .tag(Tag.contents)

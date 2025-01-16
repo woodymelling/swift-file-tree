@@ -5,22 +5,16 @@
 //  Created by Woodrow Melling on 12/5/24.
 //
 
-import UniformTypeIdentifiers
 import Foundation
 import IssueReporting
 
 public struct File: FileTreeComponent {
     let fileName: StaticString
-    let fileType: UTFileExtension
-
-    public init(_ fileName: StaticString, _ fileType: UTType) {
-        self.fileName = fileName
-        self.fileType = .utType(fileType)
-    }
+    let fileType: FileExtension
 
     public init(_ fileName: StaticString, _ fileType: FileExtension) {
         self.fileName = fileName
-        self.fileType = .extension(fileType)
+        self.fileType = fileType
     }
 
     public func read(from url: URL) throws -> Data {
@@ -39,25 +33,21 @@ public struct File: FileTreeComponent {
 extension File {
     public struct Many: FileTreeComponent {
         public typealias Content = [FileContent<Data>]
-        let fileType: UTFileExtension?
+        let fileType: FileExtension?
 
         public init() {
             self.fileType = nil
         }
 
-        public init(withExtension content: UTType) {
-            self.fileType = .utType(content)
-        }
-
         public init(withExtension content: FileExtension) {
-            self.fileType = .extension(content)
-        }
+            self.fileType = content
+       }
 
         public func read(from url: URL) throws -> [FileContent<Data>] {
             var paths = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [])
 
             if let fileType {
-                paths = paths.filter { $0.pathExtension == fileType.identifier }
+                paths = paths.filter { $0.pathExtension == fileType.rawValue }
             }
 
 //            let filteredPaths = paths.filter { $0.pathExtension == self.fileType.identifier }
@@ -128,3 +118,4 @@ public extension FileContent {
         )
     }
 }
+

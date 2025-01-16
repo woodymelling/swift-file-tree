@@ -26,11 +26,11 @@ where Downstream.Input == Upstream.Content, Downstream.Output:  Equatable {
         try self.downstream.apply(upstream.read(from: url))
     }
 
-    @inlinable
-    @inline(__always)
-    public func write(_ data: Downstream.Output, to url: URL) throws {
-        try self.upstream.write(downstream.unapply(data), to: url)
-    }
+    // @inlinable
+    // @inline(__always)
+    // public func write(_ data: Downstream.Output, to url: URL) throws {
+    //     try self.upstream.write(downstream.unapply(data), to: url)
+    // }
 }
 
 
@@ -70,7 +70,7 @@ extension FileTreeComponent {
 //        let originalData = try data.map { fileContent in
 //            return try conversion.unapply(fileContent)
 //        }
-//        try original.write(originalData, to: url)
+//        try original. write(originalData, to: url)
 //    }
 //}
 
@@ -152,6 +152,7 @@ extension DirectoryContentConversion: Sendable where AppliedConversion: Sendable
 
 
 // MARK: SwiftUI
+#if canImport(SwiftUI)
 import SwiftUI
 
 extension _ConvertedFileTreeComponent: FileTreeViewable where Upstream: FileTreeViewable {
@@ -198,6 +199,7 @@ struct ContentErrorView<E: Error>: View {
         }
     }
 }
+#endif
 //
 //extension _ManyFileMapConversion: FileTreeViewable where File.Many: FileTreeViewable {
 //    @MainActor
