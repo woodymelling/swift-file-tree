@@ -152,6 +152,7 @@ extension DirectoryContentConversion: Sendable where AppliedConversion: Sendable
 
 
 // MARK: SwiftUI
+#if canImport(SwiftUI)
 import SwiftUI
 
 extension _ConvertedFileTreeComponent: FileTreeViewable where Upstream: FileTreeViewable {
@@ -198,6 +199,7 @@ struct ContentErrorView<E: Error>: View {
         }
     }
 }
+#endif
 //
 //extension _ManyFileMapConversion: FileTreeViewable where File.Many: FileTreeViewable {
 //    @MainActor

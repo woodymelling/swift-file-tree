@@ -1,10 +1,9 @@
 import Foundation
-import UniformTypeIdentifiers
 import IssueReporting
 
 // MARK: Protocol
 public protocol FileTreeComponent<Content> {
-    associatedtype Content 
+    associatedtype Content
 
     associatedtype Body
 
@@ -32,20 +31,31 @@ extension FileTreeComponent where Body: FileTreeComponent, Body.Content == Conte
     }
 }
 
-
 // MARK: Result Builder
 @resultBuilder
 public struct FileTreeBuilder {
-    public static func buildExpression<Component>(_ component: Component) -> Component where Component: FileTreeComponent {
+    public static func buildExpression<Component>(_ component: Component) -> Component
+    where Component: FileTreeComponent {
         component
     }
 
-    public static func buildBlock<Component>(_ component: Component) -> Component where Component: FileTreeComponent {
+    public static func buildBlock<Component>(_ component: Component) -> Component
+    where Component: FileTreeComponent {
         component
     }
 
-    public static func buildBlock<each Component>(_ component: repeat each Component) -> TupleFileSystemComponent<repeat each Component> where repeat each Component: FileTreeComponent {
-        return TupleFileSystemComponent(repeat each component)
+    // public static func buildBlock<each Component>(_ component: repeat each Component) -> TupleFileSystemComponent<repeat each Component> where repeat each Component: FileTreeComponent {
+    //     return TupleFileSystemComponent(repeat each component)
+    // }
+
+    public static func buildPartialBlock<F: FileTreeComponent>(first content: F) -> F {
+        content
+    }
+
+    public static func buildPartialBlock<F0, F1>(accumulated: F0, next: F1)
+        -> PairFileTreeComponent<F0, F1> where F0: FileTreeComponent, F1: FileTreeComponent
+    {
+        return PairFileTreeComponent((accumulated, next))
     }
 }
 
