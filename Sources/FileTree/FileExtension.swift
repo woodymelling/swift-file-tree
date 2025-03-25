@@ -17,6 +17,6 @@ public struct FileExtension: ExpressibleByStringLiteral, Sendable, Hashable {
 
 extension URL {
     func appendingPathComponent(_ partialName: String, withType type: FileExtension) -> URL {
-        self.appending(path: partialName).appendingPathExtension(partialName)
+        self.appending(path: partialName).appendingPathExtension(type.rawValue)
     }
 }
