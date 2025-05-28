@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct TupleFileSystemComponent<each T: FileTreeComponent>: FileTreeComponent {
+public struct TupleFileSystemComponent<each T: FileTreeReader>: FileTreeReader {
     public var value: (repeat each T)
 
     @inlinable public init(_ value: repeat each T) {
@@ -26,7 +26,7 @@ public struct TupleFileSystemComponent<each T: FileTreeComponent>: FileTreeCompo
     // }
 }
 
-public struct PairFileTreeComponent<F1: FileTreeComponent, F2: FileTreeComponent>: FileTreeComponent {
+public struct PairFileTreeReader<F1: FileTreeReader, F2: FileTreeReader>: FileTreeReader {
     public var value: (F1, F2)
     public typealias Content = (F1.Content, F2.Content)
 

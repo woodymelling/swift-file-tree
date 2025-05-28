@@ -9,7 +9,7 @@
 import SwiftUI
 import Foundation
 
-public protocol FileTreeViewable<Content>: FileTreeComponent {
+public protocol FileTreeViewable<Content>: FileTreeReader {
     associatedtype ViewBody: View
 
     @ViewBuilder
@@ -50,16 +50,16 @@ extension FileTree: FileTreeViewable where Component: FileTreeViewable {
     }
 }
 
-//
-// extension TupleFileSystemComponent: FileTreeViewable where repeat (each T): FileTreeViewable {
-//
-//     @MainActor
-//     public func view(for content: (repeat (each T).Content)) -> some
-//     View {
-//         TupleView((repeat (each value).view(for: (each content))))
-//     }
-// }
-extension PairFileTreeComponent: FileTreeViewable where F1: FileTreeViewable, F2: FileTreeViewable {
+
+ extension TupleFileSystemComponent: FileTreeViewable where repeat (each T): FileTreeViewable {
+
+     @MainActor
+     public func view(for content: (repeat (each T).Content)) -> some
+     View {
+         TupleView((repeat (each value).view(for: (each content))))
+     }
+ }
+extension PairFileTreeReader: FileTreeViewable where F1: FileTreeViewable, F2: FileTreeViewable {
     @MainActor
     public func view(for content: (F1.Content, F2.Content)) -> some View {
         TupleView((value.0.view(for: (content.0)), value.1.view(for: (content.1))))
@@ -123,7 +123,7 @@ extension FileTreeViewable where Body: FileTreeViewable, ViewBody == Body.ViewBo
     }
 }
 
-public struct _TaggedFileTreeComponent<
+public struct _TaggedFileTreeReader<
     Child: FileTreeViewable,
     Tag: Hashable & Sendable
 >: FileTreeViewable {
@@ -137,10 +137,10 @@ public struct _TaggedFileTreeComponent<
         try fileTree.read(from: url)
     }
 
-    @inlinable
-    public func write(_ data: Child.Content, to url: URL) throws {
-        try fileTree.write(data, to: url)
-    }
+//    @inlinable
+//    public func write(_ data: Child.Content, to url: URL) throws {
+//        try fileTree.write(data, to: url)
+//    }
 
     @inlinable
     public func view(for content: Content) -> some View {
@@ -152,7 +152,7 @@ public struct _TaggedFileTreeComponent<
 }
 
 
-public struct _TaggedArrayFileTreeComponent<
+public struct _TaggedArrayFileTreeReader<
     Component: FileTreeViewable,
     Element,
     Tag: Hashable
@@ -165,10 +165,10 @@ public struct _TaggedArrayFileTreeComponent<
     public func read(from url: URL) throws -> Content {
         try original.read(from: url)
     }
-
-    public func write(_ data: Content, to url: URL) throws {
-        try original.write(data, to: url)
-    }
+//
+//    public func write(_ data: Content, to url: URL) throws {
+//        try original.write(data, to: url)
+//    }
 
     /**
     Workaround: `original.view(for:)` generates a collection of views, likely using a `ForEach` internally.
@@ -196,30 +196,30 @@ public struct _TaggedArrayFileTreeComponent<
 }
 
 extension FileTreeViewable {
-    public func tag<T: Hashable>(_ tag: T) -> _TaggedFileTreeComponent<Self, T> {
-        _TaggedFileTreeComponent(fileTree: self, tag: { _ in tag })
+    public func tag<T: Hashable>(_ tag: T) -> _TaggedFileTreeReader<Self, T> {
+        _TaggedFileTreeReader(fileTree: self, tag: { _ in tag })
     }
 
     public func tag<Element, T: Hashable>(
         _ tag: @escaping (Content.Element) -> T
-    ) -> _TaggedArrayFileTreeComponent<Self, Element, T> where Content == Array<Element> {
-        _TaggedArrayFileTreeComponent(original: self, tag: tag)
+    ) -> _TaggedArrayFileTreeReader<Self, Element, T> where Content == Array<Element> {
+        _TaggedArrayFileTreeReader(original: self, tag: tag)
     }
 }
 
 
 extension FileTreeViewable where Content: Identifiable {
-    public func tag<T: Hashable>(transformID: @Sendable @escaping (Content.ID) -> T) -> _TaggedFileTreeComponent<Self, T> {
-        _TaggedFileTreeComponent(fileTree: self, tag: { transformID($0.id) })
+    public func tag<T: Hashable>(transformID: @Sendable @escaping (Content.ID) -> T) -> _TaggedFileTreeReader<Self, T> {
+        _TaggedFileTreeReader(fileTree: self, tag: { transformID($0.id) })
     }
 
-    public func taggedByID() -> _TaggedFileTreeComponent<Self, Content.ID> where Content.ID: Sendable {
-        _TaggedFileTreeComponent(fileTree: self, tag: { $0.id })
+    public func taggedByID() -> _TaggedFileTreeReader<Self, Content.ID> where Content.ID: Sendable {
+        _TaggedFileTreeReader(fileTree: self, tag: { $0.id })
     }
 }
 
 
-extension Never: FileTreeComponent {
+extension Never: FileTreeReader {
     public typealias Content = Never
 }
 
@@ -303,7 +303,7 @@ struct DefaultDirectoryStyle: DirectoryStyle {
 }
 
 //
-//extension _MappedFileTreeComponent: FileTreeViewable where Component: FileTreeViewable {
+//extension _MappedFileTreeReader: FileTreeViewable where Component: FileTreeViewable {
 //
 //    public func view(for content: [C.Output]) -> some View {
 //        original.view(for: content.map { try! conversion.unapply($0) })
@@ -313,7 +313,7 @@ struct DefaultDirectoryStyle: DirectoryStyle {
 
 // MARK: - FileWrapper
 
-public extension FileTreeComponent {
+public extension FileTreeReader {
     func read(from fileWrapper: FileWrapper) throws -> Content {
         let tempDirectoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer {
@@ -323,19 +323,19 @@ public extension FileTreeComponent {
         return try self.read(from: tempDirectoryURL)
     }
 
-    func write(_ data: Content) throws -> FileWrapper {
-        let tempDirectoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer {
-            try? FileManager.default.removeItem(at: tempDirectoryURL)
-        }
-
-        try $writingToEmptyDirectory.withValue(true) {
-            try self.write(data, to: tempDirectoryURL)
-        }
-
-        let fileWrapper = try FileWrapper(url: tempDirectoryURL, options: .immediate)
-        return fileWrapper
-    }
+//    func write(_ data: Content) throws -> FileWrapper {
+//        let tempDirectoryURL = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+//        defer {
+//            try? FileManager.default.removeItem(at: tempDirectoryURL)
+//        }
+//
+//        try $writingToEmptyDirectory.withValue(true) {
+//            try self.write(data, to: tempDirectoryURL)
+//        }
+//
+//        let fileWrapper = try FileWrapper(url: tempDirectoryURL, options: .immediate)
+//        return fileWrapper
+//    }
 }
 
 import Conversions

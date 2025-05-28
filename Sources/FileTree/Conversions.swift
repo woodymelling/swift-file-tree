@@ -9,7 +9,7 @@
 import Foundation
 
 // MARK: Converted
-public struct _ConvertedFileTreeComponent<Upstream: FileTreeComponent, Downstream: Conversion>: FileTreeComponent
+public struct _ConvertedFileTreeReader<Upstream: FileTreeReader, Downstream: Conversion>: FileTreeReader
 where Downstream.Input == Upstream.Content, Downstream.Output:  Equatable {
     public let upstream: Upstream
     public let downstream: Downstream
@@ -35,24 +35,24 @@ where Downstream.Input == Upstream.Content, Downstream.Output:  Equatable {
 
 
 
-extension FileTreeComponent {
+extension FileTreeReader {
     @inlinable
-    public func convert<C>(_ conversion: C) -> _ConvertedFileTreeComponent<Self, C> {
+    public func convert<C>(_ conversion: C) -> _ConvertedFileTreeReader<Self, C> {
         .init(upstream: self, downstream: conversion)
     }
 
     @inlinable
     @inline(__always)
-    public func convert<C>(@ConversionBuilder build: () -> C) -> _ConvertedFileTreeComponent<Self, C> {
+    public func convert<C>(@ConversionBuilder build: () -> C) -> _ConvertedFileTreeReader<Self, C> {
         self.convert(build())
     }
 }
 
 //// MARK: ManyFiles
-//public struct _MappedFileTreeComponent<
-//    Component: FileTreeComponent,
+//public struct _MappedFileTreeReader<
+//    Component: FileTreeReader,
 //    C: Conversion
-//>: FileTreeComponent where Component.Content == [C.Input] {
+//>: FileTreeReader where Component.Content == [C.Input] {
 //    public typealias Content = [C.Output]
 //
 //    let original: Component
@@ -76,12 +76,12 @@ extension FileTreeComponent {
 
 
 
-extension FileTreeComponent where Content: Collection {
+extension FileTreeReader where Content: Collection {
     public func map<NewContent, C>(
         _ conversion: C
-    ) -> _ConvertedFileTreeComponent<Self, Conversions.MapValues<C>>
+    ) -> _ConvertedFileTreeReader<Self, Conversions.MapValues<C>>
     where C: Conversion<Self.Content.Element, NewContent> {
-        _ConvertedFileTreeComponent(
+        _ConvertedFileTreeReader(
             upstream: self,
             downstream: Conversions.MapValues(conversion)
         )
@@ -89,9 +89,9 @@ extension FileTreeComponent where Content: Collection {
 
     public func map<NewContent, C>(
         @ConversionBuilder build: () -> C
-    ) -> _ConvertedFileTreeComponent<Self, C>
+    ) -> _ConvertedFileTreeReader<Self, C>
     where C: Conversion<Self.Content.Element, NewContent> {
-        _ConvertedFileTreeComponent(
+        _ConvertedFileTreeReader(
             upstream: self,
             downstream: build()
         )
@@ -155,7 +155,7 @@ extension DirectoryContentConversion: Sendable where AppliedConversion: Sendable
 #if canImport(SwiftUI)
 import SwiftUI
 
-extension _ConvertedFileTreeComponent: FileTreeViewable where Upstream: FileTreeViewable {
+extension _ConvertedFileTreeReader: FileTreeViewable where Upstream: FileTreeViewable {
     public func view(for value: Downstream.Output) -> some View {
         ConversionView(
             upstream: upstream,

@@ -8,7 +8,7 @@
 import Foundation
 import IssueReporting
 
-public struct Directory<Component: FileTreeComponent>: FileTreeComponent {
+public struct Directory<Component: FileTreeReader>: FileTreeReader {
     let path: StaticString
     var component: Component
 
@@ -40,7 +40,7 @@ public var writingToEmptyDirectory = false
 
 
 extension Directory {
-    public struct Many: FileTreeComponent {
+    public struct Many: FileTreeReader {
         public typealias Content = [DirectoryContent<Component.Content>]
 
         var component: Component

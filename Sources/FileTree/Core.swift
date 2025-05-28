@@ -2,7 +2,7 @@ import Foundation
 import IssueReporting
 
 // MARK: Protocol
-public protocol FileTreeComponent<Content> {
+public protocol FileTreeReader<Content> {
     associatedtype Content
 
     associatedtype Body
@@ -15,13 +15,13 @@ public protocol FileTreeComponent<Content> {
     var body: Body { get }
 }
 
-extension FileTreeComponent where Body == Never {
+extension FileTreeReader where Body == Never {
     public var body: Body {
         return fatalError("Body of \(Self.self) should never be called")
     }
 }
 
-extension FileTreeComponent where Body: FileTreeComponent, Body.Content == Content {
+extension FileTreeReader where Body: FileTreeReader, Body.Content == Content {
     public func read(from url: URL) throws -> Content {
         try body.read(from: url)
     }
@@ -35,31 +35,31 @@ extension FileTreeComponent where Body: FileTreeComponent, Body.Content == Conte
 @resultBuilder
 public struct FileTreeBuilder {
     public static func buildExpression<Component>(_ component: Component) -> Component
-    where Component: FileTreeComponent {
+    where Component: FileTreeReader {
         component
     }
 
     public static func buildBlock<Component>(_ component: Component) -> Component
-    where Component: FileTreeComponent {
+    where Component: FileTreeReader {
         component
     }
 
-    // public static func buildBlock<each Component>(_ component: repeat each Component) -> TupleFileSystemComponent<repeat each Component> where repeat each Component: FileTreeComponent {
-    //     return TupleFileSystemComponent(repeat each component)
-    // }
+     public static func buildBlock<each Component>(_ component: repeat each Component) -> TupleFileSystemComponent<repeat each Component> where repeat each Component: FileTreeReader {
+         return TupleFileSystemComponent(repeat each component)
+     }
 
-    public static func buildPartialBlock<F: FileTreeComponent>(first content: F) -> F {
-        content
-    }
-
-    public static func buildPartialBlock<F0, F1>(accumulated: F0, next: F1)
-        -> PairFileTreeComponent<F0, F1> where F0: FileTreeComponent, F1: FileTreeComponent
-    {
-        return PairFileTreeComponent((accumulated, next))
-    }
+//    public static func buildPartialBlock<F: FileTreeReader>(first content: F) -> F {
+//        content
+//    }
+//
+//    public static func buildPartialBlock<F0, F1>(accumulated: F0, next: F1)
+//        -> PairFileTreeReader<F0, F1> where F0: FileTreeReader, F1: FileTreeReader
+//    {
+//        return PairFileTreeReader((accumulated, next))
+//    }
 }
 
-public struct FileTree<Component: FileTreeComponent>: FileTreeComponent {
+public struct FileTree<Component: FileTreeReader>: FileTreeReader {
 
     public var component: Component
     public typealias Content = Component.Content

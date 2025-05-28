@@ -8,7 +8,7 @@
 import Foundation
 import IssueReporting
 
-public struct File: FileTreeComponent {
+public struct File: FileTreeReader {
     let fileName: StaticString
     let fileType: FileExtension
 
@@ -31,7 +31,7 @@ public struct File: FileTreeComponent {
 }
 
 extension File {
-    public struct Many: FileTreeComponent {
+    public struct Many: FileTreeReader {
         public typealias Content = [FileContent<Data>]
         let fileType: FileExtension?
 
