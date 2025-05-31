@@ -8,7 +8,7 @@
 import Foundation
 import IssueReporting
 
-public struct File: FileTreeReader {
+public struct File: FileTreeReader, Sendable {
     let fileName: StaticString
     let fileType: FileExtension
 
@@ -17,10 +17,33 @@ public struct File: FileTreeReader {
         self.fileType = fileType
     }
 
+    struct Error: Swift.Error {
+        
+        let fileName: String
+        let fileType: FileExtension?
+        let error: Swift.Error
+
+        init(file: File, error: Error) {
+            self.fileName = file.fileName.description
+            self.fileType = file.fileType
+            self.error = error
+        }
+
+        init(fileName: String, fileType: FileExtension?, error: Swift.Error) {
+            self.fileName = fileName
+            self.fileType = fileType
+            self.error = error
+        }
+    }
+
     public func read(from url: URL) throws -> Data {
         let fileUrl = url.appendingPathComponent(fileName.description, withType: fileType)
 
-        return try Data(contentsOf: fileUrl)
+        do {
+            return try Data(contentsOf: fileUrl)
+        } catch {
+            throw Error(fileName: self.fileName.description, fileType: self.fileType, error: error)
+        }
     }
 
     public func write(_ data: Data, to url: URL) throws {
@@ -55,7 +78,11 @@ extension File {
             return try paths.map { fileURL in
 
                 let data = try Data(contentsOf: fileURL)
-                return FileContent(fileName: fileURL.deletingPathExtension().lastPathComponent, data: data)
+                return FileContent(
+                    fileName: fileURL.deletingPathExtension().lastPathComponent,
+                    fileType: self.fileType,
+                    data: data
+                )
             }.sorted { $0.fileName < $1.fileName }
         }
 
@@ -99,10 +126,12 @@ extension File {
 
 public struct FileContent<Component> {
     public var fileName: String
+    public var fileType: FileExtension?
     public var data: Component
     
-    public init(fileName: String, data: Component) {
+    public init(fileName: String, fileType: FileExtension?, data: Component) {
         self.fileName = fileName
+        self.fileType = fileType
         self.data = data
     }
 }
@@ -112,10 +141,19 @@ extension FileContent: Sendable where Component: Sendable {}
 extension FileContent: Equatable where Component: Equatable {}
 public extension FileContent {
     func map<NewContent>(_ transform: (Component) throws -> NewContent) rethrows -> FileContent<NewContent> {
-        try FileContent<NewContent>(
-            fileName: fileName,
-            data: transform(self.data)
-        )
+        do {
+            return try FileContent<NewContent>(
+                fileName: fileName,
+                fileType: self.fileType,
+                data: transform(self.data)
+            )
+        } catch {
+            throw File.Error(
+                fileName: self.fileName,
+                fileType: self.fileType,
+                error: error
+            )
+        }
     }
 }
 

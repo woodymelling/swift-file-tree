@@ -26,22 +26,5 @@ public struct TupleFileSystemComponent<each T: FileTreeReader>: FileTreeReader {
     // }
 }
 
-public struct PairFileTreeReader<F1: FileTreeReader, F2: FileTreeReader>: FileTreeReader {
-    public var value: (F1, F2)
-    public typealias Content = (F1.Content, F2.Content)
 
-    @inlinable public init(_ value: (F1, F2)) {
-        self.value = value
-    }
-
-    public func read(from url: URL) throws -> Content {
-        try (value.0.read(from: url), (value.1.read(from: url)))       
-    } 
-
- 
-    // public func write(_ data: (F1.Content, F2.Content), to url: URL) throws {
-    //     try value.0.write(data.0, to: url)
-    //     try value.1.write(data.1, to: url)
-    // }
-}
 

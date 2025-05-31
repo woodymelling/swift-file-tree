@@ -59,12 +59,12 @@ extension FileTree: FileTreeViewable where Component: FileTreeViewable {
          TupleView((repeat (each value).view(for: (each content))))
      }
  }
-extension PairFileTreeReader: FileTreeViewable where F1: FileTreeViewable, F2: FileTreeViewable {
-    @MainActor
-    public func view(for content: (F1.Content, F2.Content)) -> some View {
-        TupleView((value.0.view(for: (content.0)), value.1.view(for: (content.1))))
-    }
-}
+//extension PairFileTreeReader: FileTreeViewable where F1: FileTreeViewable, F2: FileTreeViewable {
+//    @MainActor
+//    public func view(for content: (F1.Content, F2.Content)) -> some View {
+//        TupleView((value.0.view(for: (content.0)), value.1.view(for: (content.1))))
+//    }
+//}
 
 extension Directory: FileTreeViewable where Component: FileTreeViewable {
     public func view(for content: Component.Content) -> some View {
@@ -367,26 +367,26 @@ struct PreviewFileTree: FileTreeViewable {
     @Previewable @State var selection: Set<PreviewFileTree.Tag> = []
 
     NavigationSplitView {
-        List(selection: $selection) {
-            PreviewFileTree().view(
-                for: (
-//                    Data(),
-//                    Data(),
-//                    Data(),
-                    [
-                        FileContent(fileName: "File1", data: Data()),
-                        FileContent(fileName: "File2", data: Data())
-                    ]
-                )
-            )
-        }
-        .contextMenu(forSelectionType: PreviewFileTree.Tag.self) { selections in
-            Button("Click") {
-                print("Clieck", selections)
-            }
-        } primaryAction: { selections in
-            print("PRIMARY ACTION:", selections)
-        }
+//        List(selection: $selection) {
+//            PreviewFileTree().view(
+//                for: (
+////                    Data(),
+////                    Data(),
+////                    Data(),
+//                    [
+//                        FileContent(fileName: "File1", data: Data()),
+//                        FileContent(fileName: "File2", data: Data())
+//                    ]
+//                )
+//            )
+//        }
+//        .contextMenu(forSelectionType: PreviewFileTree.Tag.self) { selections in
+//            Button("Click") {
+//                print("Clieck", selections)
+//            }
+//        } primaryAction: { selections in
+//            print("PRIMARY ACTION:", selections)
+//        }
     } detail: {
         Text("\(selection)")
     }
