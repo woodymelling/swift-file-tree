@@ -107,6 +107,32 @@ extension Directory {
 
 }
 
+extension Directory {
+    public struct Optional: FileTreeReader {
+        public typealias Content = Component.Content?
+        let path: StaticString
+        var component: Component
+
+        public init(_ path: StaticString, @FileTreeBuilder component: () -> Component) {
+            self.path = path
+            self.component = component()
+        }
+//
+        public func read(from url: URL) throws -> Component.Content? {
+            let directoryURL = url.appending(component: self.path.description)
+            func directoryExistsAtPath(_ path: String) -> Bool {
+                var isDirectory : ObjCBool = true
+                let exists = FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
+                return exists && isDirectory.boolValue
+            }
+            guard directoryExistsAtPath(directoryURL.path())
+            else { return nil }
+
+            return try component.read(from: directoryURL)
+        }
+    }
+}
+
 // MARK: DirectoryContent
 public struct DirectoryContent<T>  {
     public var directoryName: String

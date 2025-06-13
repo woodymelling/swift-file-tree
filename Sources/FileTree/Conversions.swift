@@ -274,3 +274,50 @@ extension Result where Self: Sendable {
         }
     }
 }
+//public struct _ConvertedFileTreeReader<Upstream: FileTreeReader, Downstream: Conversion>: FileTreeReader
+//where Downstream.Input == Upstream.Content, Downstream.Output:  Equatable {
+//    public let upstream: Upstream
+//    public let downstream: Downstream
+//
+//    @inlinable
+//    public init(upstream: Upstream, downstream: Downstream) {
+//        self.upstream = upstream
+//        self.downstream = downstream
+//    }
+//
+//    @inlinable
+//    @inline(__always)
+//    public func read(from url: URL) throws -> Downstream.Output {
+//        try self.downstream.apply(upstream.read(from: url))
+//    }
+//
+//    // @inlinable
+//    // @inline(__always)
+//    // public func write(_ data: Downstream.Output, to url: URL) throws {
+//    //     try self.upstream.write(downstream.unapply(data), to: url)
+//    // }
+//}
+public struct _OptionalConvertedFileTreeReader<Upstream: FileTreeReader, Downstream: Conversion>: FileTreeReader
+where Upstream.Content == Downstream.Input?, Downstream.Output: Equatable {
+    public let upstream: Upstream
+    public let downstream: Downstream
+
+    public init(upstream: Upstream, downstream: Downstream) {
+        self.upstream = upstream
+        self.downstream = downstream
+    }
+
+    public func read(from url: URL) throws -> Downstream.Output? {
+        guard let input = try upstream.read(from: url) else { return nil }
+        return try downstream.apply(input)
+    }
+
+    public typealias Content = Downstream.Output?
+}
+
+extension File.Optional {
+    public func convert<C>(_ conversion: C) -> _OptionalConvertedFileTreeReader<Self, C>
+    where Content == C.Input?, C: Conversion {
+        _OptionalConvertedFileTreeReader(upstream: self, downstream: conversion)
+    }
+}

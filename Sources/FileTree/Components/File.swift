@@ -124,6 +124,34 @@ extension File {
     }
 }
 
+
+extension File {
+    public struct Optional: FileTreeReader {
+        public typealias Content = Data?
+
+        public init(_ fileName: StaticString, _ fileType: FileExtension) {
+            self.fileName = fileName
+            self.fileType = fileType
+        }
+
+        let fileName: StaticString
+        let fileType: FileExtension
+
+        public func read(from url: URL) throws -> Data? {
+            let fileUrl = url.appendingPathComponent(fileName.description, withType: fileType)
+
+            guard FileManager.default.fileExists(atPath: fileUrl.path())
+            else { return nil }
+
+            do {
+                return try Data(contentsOf: fileUrl)
+            } catch {
+                throw Error(fileName: self.fileName.description, fileType: self.fileType, error: error)
+            }
+        }
+    }
+}
+
 public struct FileContent<Component> {
     public var fileName: String
     public var fileType: FileExtension?
