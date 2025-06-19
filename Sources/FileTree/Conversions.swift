@@ -155,37 +155,37 @@ extension DirectoryContentConversion: Sendable where AppliedConversion: Sendable
 #if canImport(SwiftUI)
 import SwiftUI
 
-extension _ConvertedFileTreeReader: FileTreeViewable where Upstream: FileTreeViewable {
-    public func view(for value: Downstream.Output) -> some View {
-        ConversionView(
-            upstream: upstream,
-            downStreamUnapply: downstream.unapply,
-            value: value
-        )
-    }
-
-    struct ConversionView: View {
-
-        var upstream: Upstream
-        var downStreamUnapply: (Downstream.Output) throws -> Upstream.Content
-        var value: Downstream.Output
-
-        var result: Result<Upstream.Content, Error> {
-            Result {
-                try downStreamUnapply(value)
-            }
-        }
-
-        var body: some View {
-            switch result {
-            case .success(let success):
-                upstream.view(for: success)
-            case .failure(let failure):
-                ContentErrorView(error: failure)
-            }
-        }
-    }
-}
+// extension _ConvertedFileTreeReader: FileTreeViewable where Upstream: FileTreeViewable {
+//     public func view(for value: Downstream.Output) -> some View {
+//         ConversionView(
+//             upstream: upstream,
+//             downStreamUnapply: downstream.unapply,
+//             value: value
+//         )
+//     }
+//
+//     struct ConversionView: View {
+//
+//         var upstream: Upstream
+//         var downStreamUnapply: (Downstream.Output) throws -> Upstream.Content
+//         var value: Downstream.Output
+//
+//         var result: Result<Upstream.Content, Error> {
+//             Result {
+//                 try downStreamUnapply(value)
+//             }
+//         }
+//
+//         var body: some View {
+//             switch result {
+//             case .success(let success):
+//                 upstream.view(for: success)
+//             case .failure(let failure):
+//                 ContentErrorView(error: failure)
+//             }
+//         }
+//     }
+// }
 
 struct ContentErrorView<E: Error>: View {
     let error: E
