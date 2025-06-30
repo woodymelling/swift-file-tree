@@ -11,7 +11,6 @@ let package = Package(
         .library(name: "FileTree", targets: ["FileTree"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/pointfreeco/xctest-dynamic-overlay", from: "1.4.0"),
         .package(url: "https://github.com/pointfreeco/swift-custom-dump", from: "1.3.3"),
         .package(url: "https://github.com/woodymelling/swift-parsing", branch: "android-support")
     ],
@@ -22,7 +21,6 @@ let package = Package(
             name: "FileTree",
             dependencies: [
                 .product(name: "Conversions", package: "swift-parsing"),
-                .product(name: "IssueReporting", package: "xctest-dynamic-overlay"),
             ]
         ),
         .testTarget(

@@ -1,5 +1,4 @@
 import Foundation
-import IssueReporting
 
 // MARK: Protocol
 public protocol FileTreeReader<Content> {
