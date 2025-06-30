@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import IssueReporting
 
 public struct Directory<Component: FileTreeReader>: FileTreeReader {
     let path: StaticString

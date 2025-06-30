@@ -6,7 +6,6 @@
 //
 
 import Foundation
-import IssueReporting
 
 public struct File: FileTreeReader, Sendable {
     let fileName: StaticString
@@ -87,28 +86,28 @@ extension File {
         }
 
         public func write(_ data: [FileContent<Data>], to url: URL) throws {
-            guard writingToEmptyDirectory
-            else {
-                reportIssue("""
-            Writing an array of files to a directory that may already have contents currently unsupported.
-            
-            This is because of the circumstance where a file exists in the directory, but not in the array
-            It is difficult to determine if the file should be deleted, or if it exists outside of the purview of the `Files` block and should be left alone.
-            
-            The semantics of Many may need to be tweaked to make this determination more clear.
-            
-            To allow writing to the directory, use:
-            
-            ```
-            $writingToEmptyDirectory.withValue(true) { 
-                Files(withExtension: .text).write([Data(), Data(), Data()]))
-            }
-            ```
-            
-            which will naively write all the contents to the directory, and not delete anything that is already there.
-            """)
-                return
-            }
+//            guard writingToEmptyDirectory
+//            else {
+//                reportIssue("""
+//            Writing an array of files to a directory that may already have contents currently unsupported.
+//            
+//            This is because of the circumstance where a file exists in the directory, but not in the array
+//            It is difficult to determine if the file should be deleted, or if it exists outside of the purview of the `Files` block and should be left alone.
+//            
+//            The semantics of Many may need to be tweaked to make this determination more clear.
+//            
+//            To allow writing to the directory, use:
+//            
+//            ```
+//            $writingToEmptyDirectory.withValue(true) { 
+//                Files(withExtension: .text).write([Data(), Data(), Data()]))
+//            }
+//            ```
+//            
+//            which will naively write all the contents to the directory, and not delete anything that is already there.
+//            """)
+//                return
+//            }
 
             for fileContent in data {
 
