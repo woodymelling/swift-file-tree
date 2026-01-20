@@ -63,7 +63,7 @@ extension File {
 
         public init(withExtension content: FileExtension) {
             self.fileType = content
-       }
+        }
 
         public func read(from url: URL) throws -> [FileContent<Data>] {
             var paths = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [])
@@ -77,7 +77,7 @@ extension File {
             return try paths.map { fileURL in
 
                 let data = try Data(contentsOf: fileURL)
-                return FileContent(
+                return try FileContent(
                     fileName: fileURL.deletingPathExtension().lastPathComponent,
                     fileType: self.fileType,
                     data: data
@@ -117,7 +117,7 @@ extension File {
                     url.appending(path: fileContent.fileName)
                 }
 
-                try fileContent.data.write(to: fileURL)
+                try fileContent.data.write(to: fileURL, options: [.atomic])
             }
         }
     }
@@ -156,10 +156,66 @@ public struct FileContent<Component> {
     public var fileType: FileExtension?
     public var data: Component
     
-    public init(fileName: String, fileType: FileExtension?, data: Component) {
+    public init(fileName: String, fileType: FileExtension?, data: Component) throws {
+        try Self.validateFileName(fileName)
         self.fileName = fileName
         self.fileType = fileType
         self.data = data
+    }
+    
+    private static func validateFileName(_ fileName: String) throws {
+        guard !fileName.isEmpty else {
+            throw ValidationError.emptyFileName
+        }
+        
+        guard !fileName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ValidationError.whitespaceOnlyFileName
+        }
+        
+        guard fileName.count <= 255 else {
+            throw ValidationError.fileNameTooLong(fileName.count)
+        }
+        
+        let invalidCharacters = CharacterSet(charactersIn: "<>:\"|?*").union(.controlCharacters)
+        guard fileName.rangeOfCharacter(from: invalidCharacters) == nil else {
+            throw ValidationError.invalidCharacters
+        }
+//        
+//        guard !fileName.hasSuffix(".") && !fileName.hasSuffix(" ") else {
+//            throw ValidationError.invalidSuffix
+//        }
+//        
+//        let reservedNames = ["CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"]
+//        let nameWithoutExtension = (fileName as NSString).deletingPathExtension.uppercased()
+//        guard !reservedNames.contains(nameWithoutExtension) else {
+//            throw ValidationError.reservedName(fileName)
+//        }
+    }
+    
+    public enum ValidationError: Error, CustomStringConvertible {
+        case emptyFileName
+        case whitespaceOnlyFileName
+        case fileNameTooLong(Int)
+        case invalidCharacters
+        case invalidSuffix
+        case reservedName(String)
+        
+        public var description: String {
+            switch self {
+            case .emptyFileName:
+                return "File name cannot be empty"
+            case .whitespaceOnlyFileName:
+                return "File name cannot contain only whitespace"
+            case .fileNameTooLong(let length):
+                return "File name too long (\(length) characters, maximum 255)"
+            case .invalidCharacters:
+                return "File name contains invalid characters (< > : \" | ? * or control characters)"
+            case .invalidSuffix:
+                return "File name cannot end with period or space"
+            case .reservedName(let name):
+                return "'\(name)' is a reserved file name"
+            }
+        }
     }
 }
 
@@ -167,20 +223,12 @@ extension FileContent: Hashable where Component: Hashable {}
 extension FileContent: Sendable where Component: Sendable {}
 extension FileContent: Equatable where Component: Equatable {}
 public extension FileContent {
-    func map<NewContent>(_ transform: (Component) throws -> NewContent) rethrows -> FileContent<NewContent> {
-        do {
-            return try FileContent<NewContent>(
-                fileName: fileName,
-                fileType: self.fileType,
-                data: transform(self.data)
-            )
-        } catch {
-            throw File.Error(
-                fileName: self.fileName,
-                fileType: self.fileType,
-                error: error
-            )
-        }
+    func map<NewContent>(_ transform: (Component) throws -> NewContent) throws -> FileContent<NewContent> {
+        try FileContent<NewContent>(
+            fileName: fileName,
+            fileType: self.fileType,
+            data: transform(self.data)
+        )
     }
 }
 

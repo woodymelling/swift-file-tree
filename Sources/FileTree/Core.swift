@@ -12,6 +12,12 @@ public protocol FileTreeReader<Content> {
 
     @FileTreeBuilder
     var body: Body { get }
+
+}
+
+struct ErrorAtURL: Error {
+    let url: URL
+    let underlyingError: Error
 }
 
 extension FileTreeReader where Body == Never {
@@ -22,7 +28,15 @@ extension FileTreeReader where Body == Never {
 
 extension FileTreeReader where Body: FileTreeReader, Body.Content == Content {
     public func read(from url: URL) throws -> Content {
-        try body.read(from: url)
+        do {
+            return try body.read(from: url)
+        } catch {
+            if let error = error as? ErrorAtURL {
+                throw error
+            }
+
+            throw ErrorAtURL(url: url, underlyingError: error)
+        }
     }
 
     // public func write(_ data: Content, to url: URL) throws {
