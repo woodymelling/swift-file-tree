@@ -192,7 +192,7 @@ public struct FileContent<Component> {
 //        }
     }
     
-    public enum ValidationError: Error, CustomStringConvertible {
+    public enum ValidationError: Error, Equatable, CustomStringConvertible {
         case emptyFileName
         case whitespaceOnlyFileName
         case fileNameTooLong(Int)

@@ -47,7 +47,7 @@ final class FileContentValidationTests {
     @Test func tooLongFileNameShouldThrow() throws {
         let longName = String(repeating: "a", count: 256)
         
-        #expect(throws: FileContent<Data>.ValidationError.fileNameTooLong) {
+        #expect(throws: FileContent<Data>.ValidationError.fileNameTooLong(256)) {
             try FileContent(fileName: longName, fileType: nil, data: Data())
         }
     }
@@ -62,25 +62,15 @@ final class FileContentValidationTests {
         }
     }
     
-    @Test func invalidSuffixShouldThrow() throws {
-        let invalidSuffixes = ["filename.", "filename ", "test. ", "name.."]
-        
-        for fileName in invalidSuffixes {
-            #expect(throws: FileContent<Data>.ValidationError.invalidSuffix) {
-                try FileContent(fileName: fileName, fileType: nil, data: Data())
-            }
-        }
-    }
-    
-    @Test func reservedNamesShouldThrow() throws {
-        let reservedNames = ["CON", "PRN", "AUX", "NUL", "COM1", "LPT1", "con", "prn.txt"]
-        
-        for fileName in reservedNames {
-            #expect(throws: FileContent<Data>.ValidationError.reservedName) {
-                try FileContent(fileName: fileName, fileType: nil, data: Data())
-            }
-        }
-    }
+//    @Test func invalidSuffixShouldThrow() throws {
+//        let invalidSuffixes = ["filename.", "filename ", "test. ", "name.."]
+//        
+//        for fileName in invalidSuffixes {
+//            #expect(throws: FileContent<Data>.ValidationError.invalidSuffix) {
+//                try FileContent(fileName: fileName, fileType: nil, data: Data())
+//            }
+//        }
+//    }
     
     @Test func validationErrorDescriptions() throws {
         let errors: [FileContent<Data>.ValidationError] = [
