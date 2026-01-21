@@ -15,6 +15,21 @@ public protocol FileTreeReader<Content> {
 
 }
 
+// MARK: Protocol
+public protocol FileTreeWriter<Content> {
+    associatedtype Content
+
+    associatedtype Body
+
+    func write(_ content: Content, to url: URL) throws -> Content
+
+    // func write(_ data: Content, to url: URL) throws
+
+    @FileTreeBuilder
+    var body: Body { get }
+
+}
+
 struct ErrorAtURL: Error {
     let url: URL
     let underlyingError: Error
