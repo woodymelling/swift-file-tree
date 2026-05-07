@@ -27,7 +27,11 @@ where Downstream.Input == Upstream.Content, Downstream.Output: Sendable {
         switch upstreamResult.output {
         case let .value(value):
             do {
-                return .value(try self.downstream.apply(value), diagnostics: upstreamResult.diagnostics)
+                return .value(
+                    try self.downstream.apply(value),
+                    graph: upstreamResult.graph,
+                    diagnostics: upstreamResult.diagnostics
+                )
             } catch {
                 var diagnostics = upstreamResult.diagnostics
                 diagnostics.append(
@@ -37,11 +41,11 @@ where Downstream.Input == Upstream.Content, Downstream.Output: Sendable {
                         message: String(describing: error)
                     )
                 )
-                return .invalid(diagnostics: diagnostics)
+                return .invalid(graph: upstreamResult.graph, diagnostics: diagnostics)
             }
 
         case .invalid:
-            return .invalid(diagnostics: upstreamResult.diagnostics)
+            return .invalid(graph: upstreamResult.graph, diagnostics: upstreamResult.diagnostics)
         }
     }
 
@@ -334,11 +338,15 @@ where Upstream.Content == Downstream.Input?, Downstream.Output: Sendable {
         switch upstreamResult.output {
         case let .value(input):
             guard let input else {
-                return .value(nil, diagnostics: upstreamResult.diagnostics)
+                return .value(nil, graph: upstreamResult.graph, diagnostics: upstreamResult.diagnostics)
             }
 
             do {
-                return .value(try downstream.apply(input), diagnostics: upstreamResult.diagnostics)
+                return .value(
+                    try downstream.apply(input),
+                    graph: upstreamResult.graph,
+                    diagnostics: upstreamResult.diagnostics
+                )
             } catch {
                 var diagnostics = upstreamResult.diagnostics
                 diagnostics.append(
@@ -348,11 +356,11 @@ where Upstream.Content == Downstream.Input?, Downstream.Output: Sendable {
                         message: String(describing: error)
                     )
                 )
-                return .invalid(diagnostics: diagnostics)
+                return .invalid(graph: upstreamResult.graph, diagnostics: diagnostics)
             }
 
         case .invalid:
-            return .invalid(diagnostics: upstreamResult.diagnostics)
+            return .invalid(graph: upstreamResult.graph, diagnostics: upstreamResult.diagnostics)
         }
     }
 

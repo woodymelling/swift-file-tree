@@ -39,7 +39,10 @@ public struct File: FileTreeReader, Sendable {
         let fileUrl = url.appendingPathComponent(fileName.description, withType: fileType)
 
         do {
-            return .value(try Data(contentsOf: fileUrl))
+            return .value(
+                try Data(contentsOf: fileUrl),
+                graph: .node(.file(SourceGraph.Path(rawValue: "\(fileName.description).\(fileType.rawValue)")))
+            )
         } catch {
             throw Error(fileName: self.fileName.description, fileType: self.fileType, error: error)
         }
@@ -83,7 +86,12 @@ extension File {
                     data: data
                 )
             }.sorted { $0.fileName < $1.fileName }
-            return .value(contents)
+            var graph = SourceGraph()
+            for fileContent in contents {
+                let path = fileContent.path
+                _ = graph.insert(.file(path))
+            }
+            return .value(contents, graph: graph)
         }
 
         public func write(_ data: [FileContent<Data>], to url: URL) throws {
@@ -144,7 +152,10 @@ extension File {
             else { return .value(nil) }
 
             do {
-                return .value(try Data(contentsOf: fileUrl))
+                return .value(
+                    try Data(contentsOf: fileUrl),
+                    graph: .node(.file(SourceGraph.Path(rawValue: "\(fileName.description).\(fileType.rawValue)")))
+                )
             } catch {
                 throw Error(fileName: self.fileName.description, fileType: self.fileType, error: error)
             }
@@ -230,5 +241,13 @@ public extension FileContent {
             fileType: self.fileType,
             data: transform(self.data)
         )
+    }
+
+    var path: SourceGraph.Path {
+        if let fileType {
+            SourceGraph.Path(rawValue: "\(fileName).\(fileType.rawValue)")
+        } else {
+            SourceGraph.Path(rawValue: fileName)
+        }
     }
 }

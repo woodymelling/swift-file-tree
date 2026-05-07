@@ -19,7 +19,17 @@ public struct Directory<Component: FileTreeReader>: FileTreeReader {
     public func read(from url: URL) throws -> FileTreeResult<Component.Content> {
         let directoryURL = url.appending(component: self.path.description)
 
-        return try component.read(from: directoryURL)
+        let result = try component.read(from: directoryURL)
+        let directoryIdentity = SourceGraph.Node.Identity.directory(.init(rawValue: self.path.description))
+        var graph = result.graph.prefixingPaths(with: .init(rawValue: self.path.description))
+        let directoryID = graph.insert(directoryIdentity)
+
+        for childID in graph.rootNodeIDs where childID != directoryID {
+            graph.connect(directoryID, to: childID, kind: .contains)
+        }
+        graph.root = directoryID
+
+        return FileTreeResult(output: result.output, graph: graph, diagnostics: result.diagnostics)
     }
 
     // public func write(_ data: Component.Content, to url: URL) throws {
@@ -72,11 +82,17 @@ extension Directory {
                 }
             }
 
-            guard !isInvalid else {
-                return .invalid(diagnostics: diagnostics)
+            var graph = SourceGraph()
+            for directoryContent in contents {
+                let identity = SourceGraph.Node.Identity.directory(.init(rawValue: directoryContent.directoryName))
+                _ = graph.insert(identity)
             }
 
-            return .value(contents.sorted(by: { $0.directoryName < $1.directoryName }), diagnostics: diagnostics)
+            guard !isInvalid else {
+                return .invalid(graph: graph, diagnostics: diagnostics)
+            }
+
+            return .value(contents.sorted(by: { $0.directoryName < $1.directoryName }), graph: graph, diagnostics: diagnostics)
         }
 
         // public func write(_ data: [DirectoryContent<Component.Content>], to url: URL) throws {
@@ -146,12 +162,11 @@ extension Directory {
 
             let result = try component.read(from: directoryURL)
 
-            switch result.output {
-            case let .value(value):
-                return .value(value, diagnostics: result.diagnostics)
-            case .invalid:
-                return .invalid(diagnostics: result.diagnostics)
-            }
+            return FileTreeResult(
+                output: result.output.map { Swift.Optional.some($0) },
+                graph: result.graph,
+                diagnostics: result.diagnostics
+            )
         }
     }
 }

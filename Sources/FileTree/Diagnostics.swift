@@ -10,10 +10,16 @@ public struct FileTreeLocation: Hashable, Sendable {
 
 public struct FileTreeResult<Value: Sendable>: Sendable {
     public var output: Output
+    public var graph: SourceGraph
     public var diagnostics: DiagnosticReport<FileTreeLocation>
 
-    public init(output: Output, diagnostics: DiagnosticReport<FileTreeLocation> = .init()) {
+    public init(
+        output: Output,
+        graph: SourceGraph = .init(),
+        diagnostics: DiagnosticReport<FileTreeLocation> = .init()
+    ) {
         self.output = output
+        self.graph = graph
         self.diagnostics = diagnostics
     }
 
@@ -26,13 +32,17 @@ public struct FileTreeResult<Value: Sendable>: Sendable {
 extension FileTreeResult {
     public static func value(
         _ value: Value,
+        graph: SourceGraph = .init(),
         diagnostics: DiagnosticReport<FileTreeLocation> = .init()
     ) -> Self {
-        Self(output: .value(value), diagnostics: diagnostics)
+        Self(output: .value(value), graph: graph, diagnostics: diagnostics)
     }
 
-    public static func invalid(diagnostics: DiagnosticReport<FileTreeLocation> = .init()) -> Self {
-        Self(output: .invalid, diagnostics: diagnostics)
+    public static func invalid(
+        graph: SourceGraph = .init(),
+        diagnostics: DiagnosticReport<FileTreeLocation> = .init()
+    ) -> Self {
+        Self(output: .invalid, graph: graph, diagnostics: diagnostics)
     }
 }
 
@@ -40,6 +50,15 @@ extension FileTreeResult: Equatable where Value: Equatable {}
 extension FileTreeResult.Output: Equatable where Value: Equatable {}
 
 extension FileTreeResult.Output {
+    public func map<NewValue>(_ transform: (Value) -> NewValue) -> FileTreeResult<NewValue>.Output {
+        switch self {
+        case let .value(value):
+            .value(transform(value))
+        case .invalid:
+            .invalid
+        }
+    }
+
     public var isInvalid: Bool {
         switch self {
         case .value:

@@ -20,11 +20,13 @@ public struct TupleFileSystemComponent<each T: FileTreeReader>: FileTreeReader {
         let results = (repeat try (each value).read(from: url))
         var diagnostics = DiagnosticReport<FileTreeLocation>()
         repeat diagnostics.append(contentsOf: (each results).diagnostics)
+        var graph = SourceGraph()
+        repeat graph.append((each results).graph)
 
         do {
-            return .value(try (repeat (each results).output.requiredValue), diagnostics: diagnostics)
+            return .value(try (repeat (each results).output.requiredValue), graph: graph, diagnostics: diagnostics)
         } catch {
-            return .invalid(diagnostics: diagnostics)
+            return .invalid(graph: graph, diagnostics: diagnostics)
         }
     }
 
