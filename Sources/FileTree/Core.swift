@@ -2,11 +2,11 @@ import Foundation
 
 // MARK: Protocol
 public protocol FileTreeReader<Content> {
-    associatedtype Content
+    associatedtype Content: Sendable
 
     associatedtype Body
 
-    func read(from url: URL) throws -> Content
+    func read(from url: URL) throws -> FileTreeResult<Content>
 
     // func write(_ data: Content, to url: URL) throws
 
@@ -17,11 +17,11 @@ public protocol FileTreeReader<Content> {
 
 // MARK: Protocol
 public protocol FileTreeWriter<Content> {
-    associatedtype Content
+    associatedtype Content: Sendable
 
     associatedtype Body
 
-    func write(_ content: Content, to url: URL) throws -> Content
+    func write(_ content: Content, to url: URL) throws -> FileTreeResult<Content>
 
     // func write(_ data: Content, to url: URL) throws
 
@@ -42,7 +42,7 @@ extension FileTreeReader where Body == Never {
 }
 
 extension FileTreeReader where Body: FileTreeReader, Body.Content == Content {
-    public func read(from url: URL) throws -> Content {
+    public func read(from url: URL) throws -> FileTreeResult<Content> {
         do {
             return try body.read(from: url)
         } catch {
@@ -96,7 +96,7 @@ public struct FileTree<Component: FileTreeReader>: FileTreeReader {
         self.component = component()
     }
 
-    public func read(from url: URL) throws -> Component.Content {
+    public func read(from url: URL) throws -> FileTreeResult<Component.Content> {
         try self.component.read(from: url)
     }
 

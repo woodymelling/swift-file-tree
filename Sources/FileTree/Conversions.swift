@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: Converted
 public struct _ConvertedFileTreeReader<Upstream: FileTreeReader, Downstream: Conversion>: FileTreeReader
-where Downstream.Input == Upstream.Content, Downstream.Output:  Equatable {
+where Downstream.Input == Upstream.Content, Downstream.Output: Sendable {
     public let upstream: Upstream
     public let downstream: Downstream
 
@@ -21,8 +21,28 @@ where Downstream.Input == Upstream.Content, Downstream.Output:  Equatable {
 
     @inlinable
     @inline(__always)
-    public func read(from url: URL) throws -> Downstream.Output {
-        try self.downstream.apply(upstream.read(from: url))
+    public func read(from url: URL) throws -> FileTreeResult<Downstream.Output> {
+        let upstreamResult = try upstream.read(from: url)
+
+        switch upstreamResult.output {
+        case let .value(value):
+            do {
+                return .value(try self.downstream.apply(value), diagnostics: upstreamResult.diagnostics)
+            } catch {
+                var diagnostics = upstreamResult.diagnostics
+                diagnostics.append(
+                    Diagnostic<FileTreeLocation>(
+                        severity: .error,
+                        code: "file-tree.conversion.failed",
+                        message: String(describing: error)
+                    )
+                )
+                return .invalid(diagnostics: diagnostics)
+            }
+
+        case .invalid:
+            return .invalid(diagnostics: upstreamResult.diagnostics)
+        }
     }
 
     // @inlinable
@@ -36,13 +56,15 @@ where Downstream.Input == Upstream.Content, Downstream.Output:  Equatable {
 
 extension FileTreeReader {
     @inlinable
-    public func convert<C>(_ conversion: C) -> _ConvertedFileTreeReader<Self, C> {
+    public func convert<C>(_ conversion: C) -> _ConvertedFileTreeReader<Self, C>
+    where C.Input == Content, C.Output: Sendable {
         .init(upstream: self, downstream: conversion)
     }
 
     @inlinable
     @inline(__always)
-    public func convert<C>(@ConversionBuilder build: () -> C) -> _ConvertedFileTreeReader<Self, C> {
+    public func convert<C>(@ConversionBuilder build: () -> C) -> _ConvertedFileTreeReader<Self, C>
+    where C.Input == Content, C.Output: Sendable {
         self.convert(build())
     }
 }
@@ -79,7 +101,7 @@ extension FileTreeReader where Content: Collection {
     public func map<NewContent, C>(
         _ conversion: C
     ) -> _ConvertedFileTreeReader<Self, Conversions.MapValues<C>>
-    where C: Conversion<Self.Content.Element, NewContent> {
+    where C: Conversion<Self.Content.Element, NewContent>, NewContent: Sendable {
         _ConvertedFileTreeReader(
             upstream: self,
             downstream: Conversions.MapValues(conversion)
@@ -89,7 +111,7 @@ extension FileTreeReader where Content: Collection {
     public func map<NewContent, C>(
         @ConversionBuilder build: () -> C
     ) -> _ConvertedFileTreeReader<Self, C>
-    where C: Conversion<Self.Content.Element, NewContent> {
+    where C: Conversion<Self.Content.Element, NewContent>, NewContent: Sendable {
         _ConvertedFileTreeReader(
             upstream: self,
             downstream: build()
@@ -297,7 +319,7 @@ extension Result where Self: Sendable {
 //    // }
 //}
 public struct _OptionalConvertedFileTreeReader<Upstream: FileTreeReader, Downstream: Conversion>: FileTreeReader
-where Upstream.Content == Downstream.Input?, Downstream.Output: Equatable {
+where Upstream.Content == Downstream.Input?, Downstream.Output: Sendable {
     public let upstream: Upstream
     public let downstream: Downstream
 
@@ -306,9 +328,32 @@ where Upstream.Content == Downstream.Input?, Downstream.Output: Equatable {
         self.downstream = downstream
     }
 
-    public func read(from url: URL) throws -> Downstream.Output? {
-        guard let input = try upstream.read(from: url) else { return nil }
-        return try downstream.apply(input)
+    public func read(from url: URL) throws -> FileTreeResult<Downstream.Output?> {
+        let upstreamResult = try upstream.read(from: url)
+
+        switch upstreamResult.output {
+        case let .value(input):
+            guard let input else {
+                return .value(nil, diagnostics: upstreamResult.diagnostics)
+            }
+
+            do {
+                return .value(try downstream.apply(input), diagnostics: upstreamResult.diagnostics)
+            } catch {
+                var diagnostics = upstreamResult.diagnostics
+                diagnostics.append(
+                    Diagnostic<FileTreeLocation>(
+                        severity: .error,
+                        code: "file-tree.conversion.failed",
+                        message: String(describing: error)
+                    )
+                )
+                return .invalid(diagnostics: diagnostics)
+            }
+
+        case .invalid:
+            return .invalid(diagnostics: upstreamResult.diagnostics)
+        }
     }
 
     public typealias Content = Downstream.Output?
@@ -316,7 +361,7 @@ where Upstream.Content == Downstream.Input?, Downstream.Output: Equatable {
 
 extension File.Optional {
     public func convert<C>(_ conversion: C) -> _OptionalConvertedFileTreeReader<Self, C>
-    where Content == C.Input?, C: Conversion {
+    where Content == C.Input?, C: Conversion, C.Output: Sendable {
         _OptionalConvertedFileTreeReader(upstream: self, downstream: conversion)
     }
 }

@@ -35,11 +35,11 @@ public struct File: FileTreeReader, Sendable {
         }
     }
 
-    public func read(from url: URL) throws -> Data {
+    public func read(from url: URL) throws -> FileTreeResult<Data> {
         let fileUrl = url.appendingPathComponent(fileName.description, withType: fileType)
 
         do {
-            return try Data(contentsOf: fileUrl)
+            return .value(try Data(contentsOf: fileUrl))
         } catch {
             throw Error(fileName: self.fileName.description, fileType: self.fileType, error: error)
         }
@@ -65,7 +65,7 @@ extension File {
             self.fileType = content
         }
 
-        public func read(from url: URL) throws -> [FileContent<Data>] {
+        public func read(from url: URL) throws -> FileTreeResult<[FileContent<Data>]> {
             var paths = try FileManager.default.contentsOfDirectory(at: url, includingPropertiesForKeys: [])
 
             if let fileType {
@@ -74,7 +74,7 @@ extension File {
 
 //            let filteredPaths = paths.filter { $0.pathExtension == self.fileType.identifier }
 
-            return try paths.map { fileURL in
+            let contents = try paths.map { fileURL in
 
                 let data = try Data(contentsOf: fileURL)
                 return try FileContent(
@@ -83,6 +83,7 @@ extension File {
                     data: data
                 )
             }.sorted { $0.fileName < $1.fileName }
+            return .value(contents)
         }
 
         public func write(_ data: [FileContent<Data>], to url: URL) throws {
@@ -136,14 +137,14 @@ extension File {
         let fileName: StaticString
         let fileType: FileExtension
 
-        public func read(from url: URL) throws -> Data? {
+        public func read(from url: URL) throws -> FileTreeResult<Data?> {
             let fileUrl = url.appendingPathComponent(fileName.description, withType: fileType)
 
             guard FileManager.default.fileExists(atPath: fileUrl.path())
-            else { return nil }
+            else { return .value(nil) }
 
             do {
-                return try Data(contentsOf: fileUrl)
+                return .value(try Data(contentsOf: fileUrl))
             } catch {
                 throw Error(fileName: self.fileName.description, fileType: self.fileType, error: error)
             }
@@ -231,4 +232,3 @@ public extension FileContent {
         )
     }
 }
-

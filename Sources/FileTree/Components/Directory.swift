@@ -16,7 +16,7 @@ public struct Directory<Component: FileTreeReader>: FileTreeReader {
         self.component = component()
     }
 
-    public func read(from url: URL) throws -> Component.Content {
+    public func read(from url: URL) throws -> FileTreeResult<Component.Content> {
         let directoryURL = url.appending(component: self.path.description)
 
         return try component.read(from: directoryURL)
@@ -48,7 +48,7 @@ extension Directory {
             self.component = component()
         }
 
-        public func read(from url: URL) throws -> [DirectoryContent<Component.Content>] {
+        public func read(from url: URL) throws -> FileTreeResult<[DirectoryContent<Component.Content>]> {
 
             let directoryNames = try FileManager.default.contentsOfDirectory(
                 at: url,
@@ -56,10 +56,27 @@ extension Directory {
                 options: .skipsHiddenFiles
             ).filter(\.hasDirectoryPath)
 
-            return try directoryNames.map {
-                let contents = try component.read(from: $0)
-                return DirectoryContent(directoryName: $0.lastPathComponent, components: contents)
-            }.sorted(by: { $0.directoryName < $1.directoryName })
+            var contents: [DirectoryContent<Component.Content>] = []
+            var diagnostics = DiagnosticReport<FileTreeLocation>()
+            var isInvalid = false
+
+            for directoryURL in directoryNames {
+                let result = try component.read(from: directoryURL)
+                diagnostics.append(contentsOf: result.diagnostics)
+
+                switch result.output {
+                case let .value(value):
+                    contents.append(DirectoryContent(directoryName: directoryURL.lastPathComponent, components: value))
+                case .invalid:
+                    isInvalid = true
+                }
+            }
+
+            guard !isInvalid else {
+                return .invalid(diagnostics: diagnostics)
+            }
+
+            return .value(contents.sorted(by: { $0.directoryName < $1.directoryName }), diagnostics: diagnostics)
         }
 
         // public func write(_ data: [DirectoryContent<Component.Content>], to url: URL) throws {
@@ -117,7 +134,7 @@ extension Directory {
             self.component = component()
         }
 //
-        public func read(from url: URL) throws -> Component.Content? {
+        public func read(from url: URL) throws -> FileTreeResult<Component.Content?> {
             let directoryURL = url.appending(component: self.path.description)
             func directoryExistsAtPath(_ path: String) -> Bool {
                 var isDirectory : ObjCBool = true
@@ -125,9 +142,16 @@ extension Directory {
                 return exists && isDirectory.boolValue
             }
             guard directoryExistsAtPath(directoryURL.path())
-            else { return nil }
+            else { return .value(nil) }
 
-            return try component.read(from: directoryURL)
+            let result = try component.read(from: directoryURL)
+
+            switch result.output {
+            case let .value(value):
+                return .value(value, diagnostics: result.diagnostics)
+            case .invalid:
+                return .invalid(diagnostics: result.diagnostics)
+            }
         }
     }
 }

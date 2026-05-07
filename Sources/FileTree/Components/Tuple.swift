@@ -16,8 +16,16 @@ public struct TupleFileSystemComponent<each T: FileTreeReader>: FileTreeReader {
 
     public typealias Content = (repeat (each T).Content)
 
-    public func read(from url: URL) throws -> Content {
-        try (repeat (each value).read(from: url))
+    public func read(from url: URL) throws -> FileTreeResult<Content> {
+        let results = (repeat try (each value).read(from: url))
+        var diagnostics = DiagnosticReport<FileTreeLocation>()
+        repeat diagnostics.append(contentsOf: (each results).diagnostics)
+
+        do {
+            return .value(try (repeat (each results).output.requiredValue), diagnostics: diagnostics)
+        } catch {
+            return .invalid(diagnostics: diagnostics)
+        }
     }
 
     // public func write(_ data: Content, to url: URL) throws {
@@ -25,6 +33,3 @@ public struct TupleFileSystemComponent<each T: FileTreeReader>: FileTreeReader {
     //     // try (repeat (each value).write((each data), to: url))
     // }
 }
-
-
-
