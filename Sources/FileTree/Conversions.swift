@@ -419,7 +419,10 @@ where Upstream.Content == Data {
                     Diagnostic<FileTreeLocation>(
                         severity: .error,
                         code: "file-tree.decode.failed",
-                        message: String(describing: error)
+                        message: String(describing: error),
+                        location: .init(sourceLocation: upstreamResult.graph.root.flatMap {
+                            upstreamResult.graph.location(for: .init(nodeID: $0))
+                        })
                     )
                 )
                 return .invalid(graph: upstreamResult.graph, diagnostics: diagnostics)

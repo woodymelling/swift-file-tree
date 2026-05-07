@@ -61,6 +61,21 @@ struct LogicalSourceTests {
         #expect(result.diagnostics.hasErrors)
         #expect(result.diagnostics.diagnostics.map(\.code.rawValue) == ["file-tree.decode.failed"])
     }
+
+    @Test func decodeFailureDiagnosticIncludesFileLocation() throws {
+        let directory = try LogicalSourceTemporaryDirectory()
+        try Data("not-valid".utf8)
+            .write(to: directory.url.appendingPathComponent("event", withType: "txt"))
+
+        let result = try File("event", "txt")
+            .decode(PipeSeparatedEventCodec.EventSource.self, as: "ome.event", using: PipeSeparatedEventCodec())
+            .read(from: directory.url)
+
+        #expect(
+            result.diagnostics.diagnostics.first?.location?.sourceLocation
+            == .init(path: "event.txt")
+        )
+    }
 }
 
 private struct PipeSeparatedEventCodec: FileTreeCodec {
