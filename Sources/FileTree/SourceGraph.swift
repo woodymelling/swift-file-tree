@@ -63,6 +63,20 @@ extension SourceGraph {
         )
     }
 
+    public mutating func insertLogicalSource(
+        kind: Node.Logical.KindName,
+        key: Node.Logical.Key?,
+        parsedFrom source: Node.ID?
+    ) -> Node.ID {
+        let logicalID = insert(.logical(kind: kind, key: key))
+
+        if let source {
+            connect(source, to: logicalID, kind: .parsedFrom)
+        }
+
+        return logicalID
+    }
+
     public func prefixingPaths(with prefix: Path) -> Self {
         var graph = SourceGraph()
         var idMap: [Node.ID: Node.ID] = [:]

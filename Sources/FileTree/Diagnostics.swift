@@ -146,7 +146,7 @@ extension Diagnostic {
 private struct InvalidFileTreeOutput: Error {}
 
 extension FileTreeResult.Output {
-    var requiredValue: Value {
+    public var requiredValue: Value {
         get throws {
             switch self {
             case let .value(value):

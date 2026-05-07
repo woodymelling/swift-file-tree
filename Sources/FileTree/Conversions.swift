@@ -373,3 +373,86 @@ extension File.Optional {
         _OptionalConvertedFileTreeReader(upstream: self, downstream: conversion)
     }
 }
+
+public struct _DecodedFileTreeReader<Upstream: FileTreeReader, Codec: FileTreeCodec>: FileTreeReader
+where Upstream.Content == Data {
+    public typealias Content = LogicalSource<Codec.Value>
+
+    public var upstream: Upstream
+    public var kind: SourceGraph.Node.Logical.KindName
+    public var codec: Codec
+    public var key: @Sendable (Codec.Value) -> SourceGraph.Node.Logical.Key?
+
+    public init(
+        upstream: Upstream,
+        kind: SourceGraph.Node.Logical.KindName,
+        codec: Codec,
+        key: @escaping @Sendable (Codec.Value) -> SourceGraph.Node.Logical.Key?
+    ) {
+        self.upstream = upstream
+        self.kind = kind
+        self.codec = codec
+        self.key = key
+    }
+
+    public func read(from url: URL) throws -> FileTreeResult<Content> {
+        let upstreamResult = try upstream.read(from: url)
+
+        switch upstreamResult.output {
+        case let .value(data):
+            do {
+                let value = try codec.decode(data)
+                var graph = upstreamResult.graph
+                let logicalID = graph.insertLogicalSource(
+                    kind: kind,
+                    key: key(value),
+                    parsedFrom: graph.root
+                )
+                return .value(
+                    LogicalSource(value: value, handle: .init(nodeID: logicalID)),
+                    graph: graph,
+                    diagnostics: upstreamResult.diagnostics
+                )
+            } catch {
+                var diagnostics = upstreamResult.diagnostics
+                diagnostics.append(
+                    Diagnostic<FileTreeLocation>(
+                        severity: .error,
+                        code: "file-tree.decode.failed",
+                        message: String(describing: error)
+                    )
+                )
+                return .invalid(graph: upstreamResult.graph, diagnostics: diagnostics)
+            }
+
+        case .invalid:
+            return .invalid(graph: upstreamResult.graph, diagnostics: upstreamResult.diagnostics)
+        }
+    }
+}
+
+extension FileTreeReader where Content == Data {
+    public func decode<Value, Codec>(
+        _ type: Value.Type,
+        as kind: SourceGraph.Node.Logical.KindName,
+        using codec: Codec
+    ) -> _DecodedFileTreeReader<Self, Codec>
+    where Value: Identifiable & Sendable, Value.ID: CustomStringConvertible, Codec: FileTreeCodec, Codec.Value == Value {
+        _DecodedFileTreeReader(
+            upstream: self,
+            kind: kind,
+            codec: codec,
+            key: { SourceGraph.Node.Logical.Key(rawValue: $0.id.description) }
+        )
+    }
+
+    public func decode<Value, Codec>(
+        _ type: Value.Type,
+        as kind: SourceGraph.Node.Logical.KindName,
+        key: @escaping @Sendable (Value) -> SourceGraph.Node.Logical.Key?,
+        using codec: Codec
+    ) -> _DecodedFileTreeReader<Self, Codec>
+    where Value: Sendable, Codec: FileTreeCodec, Codec.Value == Value {
+        _DecodedFileTreeReader(upstream: self, kind: kind, codec: codec, key: key)
+    }
+}
