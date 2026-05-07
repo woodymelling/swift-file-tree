@@ -2,9 +2,33 @@ import Foundation
 
 public struct FileTreeLocation: Hashable, Sendable {
     public var path: String?
+    public var handle: SourceGraph.Handle?
+    public var sourceLocation: SourceGraph.Location?
 
-    public init(path: String? = nil) {
+    public init(
+        path: String? = nil,
+        handle: SourceGraph.Handle? = nil,
+        sourceLocation: SourceGraph.Location? = nil
+    ) {
         self.path = path
+        self.handle = handle
+        self.sourceLocation = sourceLocation
+    }
+
+    public func resolved(in graph: SourceGraph) -> SourceGraph.Location? {
+        if let sourceLocation {
+            return sourceLocation
+        }
+
+        if let handle, let location = graph.location(for: handle) {
+            return location
+        }
+
+        if let path {
+            return SourceGraph.Location(path: SourceGraph.Path(rawValue: path))
+        }
+
+        return nil
     }
 }
 
@@ -101,15 +125,30 @@ public struct DiagnosticReport<Location: Sendable>: Sendable {
 
 extension DiagnosticReport: Equatable where Location: Equatable {}
 
+extension DiagnosticReport where Location == FileTreeLocation {
+    public func resolved(in graph: SourceGraph) -> DiagnosticReport<SourceGraph.Location> {
+        DiagnosticReport<SourceGraph.Location>(
+            diagnostics: diagnostics.map { diagnostic in
+                Diagnostic<SourceGraph.Location>(
+                    severity: diagnostic.severity,
+                    code: diagnostic.code,
+                    message: diagnostic.message,
+                    location: diagnostic.location?.resolved(in: graph)
+                )
+            }
+        )
+    }
+}
+
 public struct Diagnostic<Location: Sendable>: Sendable {
-    public var severity: Severity
-    public var code: Code
+    public var severity: DiagnosticSeverity
+    public var code: DiagnosticCode
     public var message: String
     public var location: Location?
 
     public init(
-        severity: Severity,
-        code: Code,
+        severity: DiagnosticSeverity,
+        code: DiagnosticCode,
         message: String,
         location: Location? = nil
     ) {
@@ -123,23 +162,26 @@ public struct Diagnostic<Location: Sendable>: Sendable {
 extension Diagnostic: Equatable where Location: Equatable {}
 
 extension Diagnostic {
-    public enum Severity: String, Hashable, Sendable {
-        case error
-        case warning
-        case suggestion
-        case note
+    public typealias Severity = DiagnosticSeverity
+    public typealias Code = DiagnosticCode
+}
+
+public enum DiagnosticSeverity: String, Hashable, Sendable {
+    case error
+    case warning
+    case suggestion
+    case note
+}
+
+public struct DiagnosticCode: Hashable, Sendable, RawRepresentable, ExpressibleByStringLiteral {
+    public var rawValue: String
+
+    public init(rawValue: String) {
+        self.rawValue = rawValue
     }
 
-    public struct Code: Hashable, Sendable, RawRepresentable, ExpressibleByStringLiteral {
-        public var rawValue: String
-
-        public init(rawValue: String) {
-            self.rawValue = rawValue
-        }
-
-        public init(stringLiteral value: StringLiteralType) {
-            self.rawValue = value
-        }
+    public init(stringLiteral value: StringLiteralType) {
+        self.rawValue = value
     }
 }
 
