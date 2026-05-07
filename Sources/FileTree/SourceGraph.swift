@@ -97,6 +97,36 @@ extension SourceGraph {
         graph.root = root.flatMap { idMap[$0] }
         return graph
     }
+
+    public func location(for handle: Handle) -> Location? {
+        var visitedNodeIDs = Set<Node.ID>()
+        return location(for: handle.nodeID, visitedNodeIDs: &visitedNodeIDs)
+    }
+
+    private func location(
+        for nodeID: Node.ID,
+        visitedNodeIDs: inout Set<Node.ID>
+    ) -> Location? {
+        guard visitedNodeIDs.insert(nodeID).inserted,
+              let node = nodes[nodeID]
+        else { return nil }
+
+        switch node.identity {
+        case let .directory(path), let .file(path):
+            return Location(path: path)
+
+        case .repository:
+            return nil
+
+        case .logical:
+            for edge in edges where edge.kind == .parsedFrom && edge.target == nodeID {
+                if let location = location(for: edge.source, visitedNodeIDs: &visitedNodeIDs) {
+                    return location
+                }
+            }
+            return nil
+        }
+    }
 }
 
 extension SourceGraph {
@@ -115,6 +145,40 @@ extension SourceGraph {
             guard !rawValue.isEmpty else { return path }
             guard !path.rawValue.isEmpty else { return self }
             return Path(rawValue: "\(rawValue)/\(path.rawValue)")
+        }
+    }
+}
+
+extension SourceGraph {
+    public struct Location: Hashable, Sendable {
+        public var path: Path
+        public var span: Span?
+
+        public init(path: Path, span: Span? = nil) {
+            self.path = path
+            self.span = span
+        }
+    }
+}
+
+extension SourceGraph.Location {
+    public struct Position: Hashable, Sendable {
+        public var line: Int
+        public var column: Int
+
+        public init(line: Int, column: Int) {
+            self.line = line
+            self.column = column
+        }
+    }
+
+    public struct Span: Hashable, Sendable {
+        public var start: Position
+        public var end: Position?
+
+        public init(start: Position, end: Position? = nil) {
+            self.start = start
+            self.end = end
         }
     }
 }
