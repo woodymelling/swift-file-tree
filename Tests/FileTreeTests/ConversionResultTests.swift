@@ -150,6 +150,65 @@ struct ConversionResultTests {
             ]
         )
     }
+
+    @Test func fileContentConversionMergesDiagnosticsFromWrappedConversion() throws {
+        let input = try FileContent(
+            fileName: "event",
+            fileType: "txt",
+            data: Data("Wicked Woods".utf8)
+        )
+
+        let result = FileContentConversion(WarningEventNameConversion())
+            .apply(input, in: .node(.file("event.txt")))
+        let output = try result.output.requiredValue
+
+        #expect(output.fileName == "event")
+        #expect(output.fileType == "txt")
+        #expect(output.data == "Wicked Woods")
+        #expect(result.diagnostics.diagnostics.map(\.code.rawValue) == ["ome.event.description.missing"])
+    }
+
+    @Test func fileContentConversionReturnsInvalidFromWrappedConversion() throws {
+        let input = try FileContent(
+            fileName: "event",
+            fileType: "txt",
+            data: Data("".utf8)
+        )
+
+        let result = FileContentConversion(RequiredEventNameConversion())
+            .apply(input, in: .node(.file("event.txt")))
+
+        #expect(result.output.isInvalid)
+        #expect(result.diagnostics.diagnostics.map(\.code.rawValue) == ["ome.event.name.required"])
+    }
+
+    @Test func fileContentConversionPrintMergesDiagnosticsFromWrappedConversion() throws {
+        let output = try FileContent(
+            fileName: "event",
+            fileType: "txt",
+            data: "Wicked Woods"
+        )
+
+        let result = FileContentConversion(WarningPrintEventNameConversion())
+            .unapply(output, in: .node(.file("event.txt")))
+        let input = try result.output.requiredValue
+
+        #expect(input.fileName == "event")
+        #expect(input.fileType == "txt")
+        #expect(String(decoding: input.data, as: UTF8.self) == "Wicked Woods")
+        #expect(result.diagnostics.diagnostics.map(\.code.rawValue) == ["ome.event.name.printed"])
+    }
+
+    @Test func directoryContentConversionMergesDiagnosticsFromWrappedConversion() {
+        let result = DirectoryContentConversion(WarningEventNameConversion())
+            .apply(
+                DirectoryContent(directoryName: "wicked-woods", components: Data("Wicked Woods".utf8)),
+                in: .node(.directory("wicked-woods"))
+            )
+
+        #expect(result.output == .value(DirectoryContent(directoryName: "wicked-woods", components: "Wicked Woods")))
+        #expect(result.diagnostics.diagnostics.map(\.code.rawValue) == ["ome.event.description.missing"])
+    }
 }
 
 private struct WarningEventNameConversion: Conversion {

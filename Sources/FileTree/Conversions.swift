@@ -161,8 +161,84 @@ public struct FileContentConversion<AppliedConversion: Conversion>: Conversion {
         try input.map { try self.conversion.apply($0) }
     }
 
+    public func apply(
+        _ input: FileContent<AppliedConversion.Input>,
+        in graph: SourceGraph
+    ) -> Conversions.Result<FileContent<AppliedConversion.Output>> {
+        let result = conversion.apply(input.data, in: graph.rooted(at: input))
+
+        switch result.output {
+        case let .value(output) where !result.diagnostics.hasErrors:
+            do {
+                return .value(
+                    try FileContent(
+                        fileName: input.fileName,
+                        fileType: input.fileType,
+                        data: output
+                    ),
+                    diagnostics: result.diagnostics
+                )
+            } catch {
+                return .invalid(
+                    diagnostics: result.diagnostics.merging(
+                        .init(
+                            diagnostics: [
+                                Diagnostic(
+                                    severity: .error,
+                                    code: "file-tree.file-content.conversion.failed",
+                                    message: String(describing: error)
+                                )
+                            ]
+                        )
+                    )
+                )
+            }
+
+        case .value, .invalid:
+            return .invalid(diagnostics: result.diagnostics)
+        }
+    }
+
     public func unapply(_ output: FileContent<AppliedConversion.Output>) throws -> FileContent<AppliedConversion.Input> {
         try output.map { try self.conversion.unapply($0) }
+    }
+
+    public func unapply(
+        _ output: FileContent<AppliedConversion.Output>,
+        in graph: SourceGraph
+    ) -> Conversions.Result<FileContent<AppliedConversion.Input>> {
+        let result = conversion.unapply(output.data, in: graph.rooted(at: output))
+
+        switch result.output {
+        case let .value(input) where !result.diagnostics.hasErrors:
+            do {
+                return .value(
+                    try FileContent(
+                        fileName: output.fileName,
+                        fileType: output.fileType,
+                        data: input
+                    ),
+                    diagnostics: result.diagnostics
+                )
+            } catch {
+                return .invalid(
+                    diagnostics: result.diagnostics.merging(
+                        .init(
+                            diagnostics: [
+                                Diagnostic(
+                                    severity: .error,
+                                    code: "file-tree.file-content.print.failed",
+                                    message: String(describing: error)
+                                )
+                            ]
+                        )
+                    )
+                )
+            }
+
+        case .value, .invalid:
+            return .invalid(diagnostics: result.diagnostics)
+        }
     }
 }
 
@@ -187,8 +263,50 @@ public struct DirectoryContentConversion<AppliedConversion: Conversion>: Convers
         try input.map { try self.conversion.apply($0) }
     }
 
+    public func apply(
+        _ input: DirectoryContent<AppliedConversion.Input>,
+        in graph: SourceGraph
+    ) -> Conversions.Result<DirectoryContent<AppliedConversion.Output>> {
+        let result = conversion.apply(input.components, in: graph.rooted(at: input))
+
+        switch result.output {
+        case let .value(output) where !result.diagnostics.hasErrors:
+            return .value(
+                DirectoryContent(
+                    directoryName: input.directoryName,
+                    components: output
+                ),
+                diagnostics: result.diagnostics
+            )
+
+        case .value, .invalid:
+            return .invalid(diagnostics: result.diagnostics)
+        }
+    }
+
     public func unapply(_ output: DirectoryContent<AppliedConversion.Output>) throws -> DirectoryContent<AppliedConversion.Input> {
         try output.map { try self.conversion.unapply($0) }
+    }
+
+    public func unapply(
+        _ output: DirectoryContent<AppliedConversion.Output>,
+        in graph: SourceGraph
+    ) -> Conversions.Result<DirectoryContent<AppliedConversion.Input>> {
+        let result = conversion.unapply(output.components, in: graph.rooted(at: output))
+
+        switch result.output {
+        case let .value(input) where !result.diagnostics.hasErrors:
+            return .value(
+                DirectoryContent(
+                    directoryName: output.directoryName,
+                    components: input
+                ),
+                diagnostics: result.diagnostics
+            )
+
+        case .value, .invalid:
+            return .invalid(diagnostics: result.diagnostics)
+        }
     }
 }
 
