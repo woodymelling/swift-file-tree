@@ -43,6 +43,28 @@ public struct Directory<Component: FileTreeReader>: FileTreeReader {
     // }
 }
 
+extension Directory: FileTreeWriter where Component: FileTreeWriter {
+    public func write(_ content: Component.Content, to url: URL) throws -> FileTreeResult<Component.Content> {
+        let directoryURL = url.appending(component: self.path.description)
+
+        if !FileManager.default.fileExists(atPath: directoryURL.path()) {
+            try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: false)
+        }
+
+        let result = try component.write(content, to: directoryURL)
+        let directoryIdentity = SourceGraph.Node.Identity.directory(.init(rawValue: self.path.description))
+        var graph = result.graph.prefixingPaths(with: .init(rawValue: self.path.description))
+        let directoryID = graph.insert(directoryIdentity)
+
+        for childID in graph.rootNodeIDs where childID != directoryID {
+            graph.connect(directoryID, to: childID, kind: .contains)
+        }
+        graph.root = directoryID
+
+        return FileTreeResult(output: result.output, graph: graph, diagnostics: result.diagnostics)
+    }
+}
+
 
 @TaskLocal
 public var writingToEmptyDirectory = false
@@ -137,6 +159,65 @@ extension Directory {
         // }
     }
 
+}
+
+extension Directory.Many: FileTreeWriter where Component: FileTreeWriter {
+    public func write(
+        _ content: [DirectoryContent<Component.Content>],
+        to url: URL
+    ) throws -> FileTreeResult<[DirectoryContent<Component.Content>]> {
+        if !FileManager.default.fileExists(atPath: url.path()) {
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        }
+
+        var outputs: [DirectoryContent<Component.Content>] = []
+        var diagnostics = DiagnosticReport<FileTreeLocation>()
+        var graph = SourceGraph()
+        var isInvalid = false
+
+        for directoryContent in content {
+            let directoryURL = url.appendingPathComponent(directoryContent.directoryName)
+
+            if !FileManager.default.fileExists(atPath: directoryURL.path()) {
+                try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: false)
+            }
+
+            let result = try component.write(directoryContent.components, to: directoryURL)
+            diagnostics.append(contentsOf: result.diagnostics)
+
+            let directoryIdentity = SourceGraph.Node.Identity.directory(
+                .init(rawValue: directoryContent.directoryName)
+            )
+            var childGraph = result.graph.prefixingPaths(
+                with: .init(rawValue: directoryContent.directoryName)
+            )
+            let directoryID = childGraph.insert(directoryIdentity)
+
+            for childID in childGraph.rootNodeIDs where childID != directoryID {
+                childGraph.connect(directoryID, to: childID, kind: .contains)
+            }
+            childGraph.root = directoryID
+            graph.append(childGraph)
+
+            switch result.output {
+            case let .value(components):
+                outputs.append(
+                    DirectoryContent(
+                        directoryName: directoryContent.directoryName,
+                        components: components
+                    )
+                )
+            case .invalid:
+                isInvalid = true
+            }
+        }
+
+        guard !isInvalid && !diagnostics.hasErrors else {
+            return .invalid(graph: graph, diagnostics: diagnostics)
+        }
+
+        return .value(outputs, graph: graph, diagnostics: diagnostics)
+    }
 }
 
 extension Directory {

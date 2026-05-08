@@ -35,3 +35,23 @@ public struct TupleFileSystemComponent<each T: FileTreeReader>: FileTreeReader {
     //     // try (repeat (each value).write((each data), to: url))
     // }
 }
+
+extension TupleFileSystemComponent: FileTreeWriter where repeat each T: FileTreeWriter {
+    public func write(_ content: Content, to url: URL) throws -> FileTreeResult<Content> {
+        let results = (repeat try (each value).write((each content), to: url))
+        var diagnostics = DiagnosticReport<FileTreeLocation>()
+        repeat diagnostics.append(contentsOf: (each results).diagnostics)
+        var graph = SourceGraph()
+        repeat graph.append((each results).graph)
+
+        do {
+            let output = try (repeat (each results).output.requiredValue)
+            guard !diagnostics.hasErrors else {
+                return .invalid(graph: graph, diagnostics: diagnostics)
+            }
+            return .value(output, graph: graph, diagnostics: diagnostics)
+        } catch {
+            return .invalid(graph: graph, diagnostics: diagnostics)
+        }
+    }
+}

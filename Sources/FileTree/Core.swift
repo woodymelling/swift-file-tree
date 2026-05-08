@@ -16,18 +16,8 @@ public protocol FileTreeReader<Content> {
 }
 
 // MARK: Protocol
-public protocol FileTreeWriter<Content> {
-    associatedtype Content: Sendable
-
-    associatedtype Body
-
+public protocol FileTreeWriter<Content>: FileTreeReader {
     func write(_ content: Content, to url: URL) throws -> FileTreeResult<Content>
-
-    // func write(_ data: Content, to url: URL) throws
-
-    @FileTreeBuilder
-    var body: Body { get }
-
 }
 
 struct ErrorAtURL: Error {
@@ -57,6 +47,12 @@ extension FileTreeReader where Body: FileTreeReader, Body.Content == Content {
     // public func write(_ data: Content, to url: URL) throws {
     //     try body.write(data, to: url)
     // }
+}
+
+extension FileTreeWriter where Body: FileTreeWriter, Body.Content == Content {
+    public func write(_ content: Content, to url: URL) throws -> FileTreeResult<Content> {
+        try body.write(content, to: url)
+    }
 }
 
 // MARK: Result Builder
@@ -103,4 +99,10 @@ public struct FileTree<Component: FileTreeReader>: FileTreeReader {
     // public func write(_ data: Component.Content, to url: URL) throws {
     //     try self.component.write(data, to: url)
     // }
+}
+
+extension FileTree: FileTreeWriter where Component: FileTreeWriter {
+    public func write(_ content: Component.Content, to url: URL) throws -> FileTreeResult<Component.Content> {
+        try self.component.write(content, to: url)
+    }
 }
