@@ -49,6 +49,32 @@ where Downstream.Input == Upstream.Content, Downstream.Output: Sendable {
     // }
 }
 
+extension _ConvertedFileTreeReader: FileTreeWriter where Upstream: FileTreeWriter {
+    public func write(
+        _ content: Downstream.Output,
+        to url: URL
+    ) throws -> FileTreeResult<Downstream.Output> {
+        let conversionResult = downstream.unapply(content, in: .init())
+        var diagnostics = conversionResult.diagnostics
+
+        switch conversionResult.output {
+        case let .value(upstreamContent) where !diagnostics.hasErrors:
+            let upstreamResult = try upstream.write(upstreamContent, to: url)
+            diagnostics.append(contentsOf: upstreamResult.diagnostics)
+
+            switch upstreamResult.output {
+            case .value where !diagnostics.hasErrors:
+                return .value(content, graph: upstreamResult.graph, diagnostics: diagnostics)
+            case .value, .invalid:
+                return .invalid(graph: upstreamResult.graph, diagnostics: diagnostics)
+            }
+
+        case .value, .invalid:
+            return .invalid(diagnostics: diagnostics)
+        }
+    }
+}
+
 
 
 extension FileTreeReader {

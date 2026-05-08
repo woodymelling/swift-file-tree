@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct File: FileTreeReader, Sendable {
+public struct File: FileTreeReader, FileTreeWriter, Sendable {
     let fileName: StaticString
     let fileType: FileExtension
 
@@ -48,10 +48,18 @@ public struct File: FileTreeReader, Sendable {
         }
     }
 
-    public func write(_ data: Data, to url: URL) throws {
+    public func write(_ data: Data, to url: URL) throws -> FileTreeResult<Data> {
         let fileUrl = url.appendingPathComponent(fileName.description, withType: fileType)
 
-        return try data.write(to: fileUrl)
+        do {
+            try data.write(to: fileUrl)
+            return .value(
+                data,
+                graph: .node(.file(SourceGraph.Path(rawValue: "\(fileName.description).\(fileType.rawValue)")))
+            )
+        } catch {
+            throw Error(fileName: self.fileName.description, fileType: self.fileType, error: error)
+        }
     }
 }
 
