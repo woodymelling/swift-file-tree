@@ -21,11 +21,93 @@ extension Conversions {
       try input.map(transform.apply)
     }
 
+    public func apply(_ input: [C.Input], in graph: SourceGraph) -> Conversions.Result<[C.Output]> {
+      var outputs: [C.Output] = []
+      var diagnostics = DiagnosticReport<FileTreeLocation>()
+      var isInvalid = false
+
+      outputs.reserveCapacity(input.count)
+
+      for element in input {
+        let result = transform.apply(element, in: graph.rooted(at: element))
+        diagnostics.append(contentsOf: result.diagnostics)
+
+        switch result.output {
+        case let .value(output) where !result.diagnostics.hasErrors:
+          outputs.append(output)
+
+        case .value, .invalid:
+          isInvalid = true
+        }
+      }
+
+      guard !isInvalid && !diagnostics.hasErrors else {
+        return .invalid(diagnostics: diagnostics)
+      }
+
+      return .value(outputs, diagnostics: diagnostics)
+    }
+
     public func unapply(_ output: [C.Output]) throws -> [C.Input] {
       try output.map(transform.unapply)
     }
+
+    public func unapply(_ output: [C.Output], in graph: SourceGraph) -> Conversions.Result<[C.Input]> {
+      var inputs: [C.Input] = []
+      var diagnostics = DiagnosticReport<FileTreeLocation>()
+      var isInvalid = false
+
+      inputs.reserveCapacity(output.count)
+
+      for element in output {
+        let result = transform.unapply(element, in: graph.rooted(at: element))
+        diagnostics.append(contentsOf: result.diagnostics)
+
+        switch result.output {
+        case let .value(input) where !result.diagnostics.hasErrors:
+          inputs.append(input)
+
+        case .value, .invalid:
+          isInvalid = true
+        }
+      }
+
+      guard !isInvalid && !diagnostics.hasErrors else {
+        return .invalid(diagnostics: diagnostics)
+      }
+
+      return .value(inputs, diagnostics: diagnostics)
+    }
   }
 
+}
+
+extension SourceGraph {
+  protocol RootedElement {
+    var sourceGraphIdentity: Node.Identity { get }
+  }
+
+  func rooted<Element>(at element: Element) -> SourceGraph {
+    guard let rootedElement = element as? any RootedElement,
+          containsNode(rootedElement.sourceGraphIdentity)
+    else { return self }
+
+    var copy = self
+    copy.root = Node.ID(rootedElement.sourceGraphIdentity)
+    return copy
+  }
+}
+
+extension FileContent: SourceGraph.RootedElement {
+  var sourceGraphIdentity: SourceGraph.Node.Identity {
+    .file(path)
+  }
+}
+
+extension DirectoryContent: SourceGraph.RootedElement {
+  var sourceGraphIdentity: SourceGraph.Node.Identity {
+    .directory(.init(rawValue: directoryName))
+  }
 }
 
 extension Conversions {

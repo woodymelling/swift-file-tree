@@ -108,6 +108,48 @@ struct ConversionResultTests {
         #expect(!FileManager.default.fileExists(atPath: directory.url.appendingPathComponent("event", withType: "txt").path()))
         #expect(result.diagnostics.diagnostics.map(\.code.rawValue) == ["ome.event.name.unprintable"])
     }
+
+    @Test func collectionReaderMergesDiagnosticsFromEachMappedElement() throws {
+        let directory = try ConversionTemporaryDirectory()
+        try Data("".utf8)
+            .write(to: directory.url.appendingPathComponent("a", withType: "txt"))
+        try Data("Wicked Woods".utf8)
+            .write(to: directory.url.appendingPathComponent("b", withType: "txt"))
+
+        let result = try File.Many(withExtension: "txt")
+            .map(FileContentTextConversion())
+            .read(from: directory.url)
+
+        #expect(result.output.isInvalid)
+        #expect(
+            result.diagnostics.diagnostics.map(\.code.rawValue)
+            == [
+                "file-tree-test.file.empty",
+                "file-tree-test.file.read",
+            ]
+        )
+        #expect(
+            result.diagnostics.diagnostics.map(\.location?.path)
+            == [
+                "a.txt",
+                "b.txt",
+            ]
+        )
+    }
+
+    @Test func mapValuesPrintMergesDiagnosticsFromEachElement() {
+        let result = Conversions.MapValues(MapValuesPrintConversion())
+            .unapply(["Wicked Woods", ""], in: .init())
+
+        #expect(result.output.isInvalid)
+        #expect(
+            result.diagnostics.diagnostics.map(\.code.rawValue)
+            == [
+                "file-tree-test.value.printed",
+                "file-tree-test.value.empty",
+            ]
+        )
+    }
 }
 
 private struct WarningEventNameConversion: Conversion {
@@ -261,6 +303,102 @@ private struct FailingPrintEventNameConversion: Conversion {
             )
         )
     }
+}
+
+private struct FileContentTextConversion: Conversion {
+    func apply(_ input: FileContent<Data>) throws -> String {
+        String(decoding: input.data, as: UTF8.self)
+    }
+
+    func apply(_ input: FileContent<Data>, in graph: SourceGraph) -> Conversions.Result<String> {
+        let value = String(decoding: input.data, as: UTF8.self)
+        guard !value.isEmpty else {
+            return .invalid(
+                diagnostics: .init(
+                    diagnostics: [
+                        .init(
+                            severity: .error,
+                            code: "file-tree-test.file.empty",
+                            message: "File is empty",
+                            location: conversionResultLocation(in: graph)
+                        )
+                    ]
+                )
+            )
+        }
+
+        return .value(
+            value,
+            diagnostics: .init(
+                diagnostics: [
+                    .init(
+                        severity: .warning,
+                        code: "file-tree-test.file.read",
+                        message: "File was read",
+                        location: conversionResultLocation(in: graph)
+                    )
+                ]
+            )
+        )
+    }
+
+    func unapply(_ output: String) throws -> FileContent<Data> {
+        try FileContent(fileName: output, fileType: "txt", data: Data(output.utf8))
+    }
+}
+
+private struct MapValuesPrintConversion: Conversion {
+    func apply(_ input: Data) throws -> String {
+        String(decoding: input, as: UTF8.self)
+    }
+
+    func unapply(_ output: String) throws -> Data {
+        Data(output.utf8)
+    }
+
+    func unapply(_ output: String, in graph: SourceGraph) -> Conversions.Result<Data> {
+        guard !output.isEmpty else {
+            return .invalid(
+                diagnostics: .init(
+                    diagnostics: [
+                        .init(
+                            severity: .error,
+                            code: "file-tree-test.value.empty",
+                            message: "Value is empty"
+                        )
+                    ]
+                )
+            )
+        }
+
+        return .value(
+            Data(output.utf8),
+            diagnostics: .init(
+                diagnostics: [
+                    .init(
+                        severity: .warning,
+                        code: "file-tree-test.value.printed",
+                        message: "Value was printed"
+                    )
+                ]
+            )
+        )
+    }
+}
+
+private func conversionResultLocation(in graph: SourceGraph) -> FileTreeLocation? {
+    guard let root = graph.root else { return nil }
+
+    let handle = SourceGraph.Handle(nodeID: root)
+    if let sourceLocation = graph.location(for: handle) {
+        return FileTreeLocation(
+            path: sourceLocation.path.rawValue,
+            handle: handle,
+            sourceLocation: sourceLocation
+        )
+    }
+
+    return FileTreeLocation(handle: handle)
 }
 
 private final class ConversionTemporaryDirectory {
