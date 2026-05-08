@@ -28,6 +28,10 @@
   /// - Returns: An "un"-transformed input value.
   @Sendable func unapply(_ input: Output) throws -> Input
 
+  @Sendable func apply(_ input: Input, in graph: SourceGraph) -> Conversions.Result<Output>
+
+  @Sendable func unapply(_ input: Output, in graph: SourceGraph) -> Conversions.Result<Input>
+
   @ConversionBuilder
   var body: Body { get }
 }
@@ -40,6 +44,14 @@ where Body: Conversion, Body.Input == Input, Body.Output == Output {
 
   public func unapply(_ output: Output) throws -> Input {
     try self.body.unapply(output)
+  }
+
+  public func apply(_ input: Input, in graph: SourceGraph) -> Conversions.Result<Output> {
+    self.body.apply(input, in: graph)
+  }
+
+  public func unapply(_ output: Output, in graph: SourceGraph) -> Conversions.Result<Input> {
+    self.body.unapply(output, in: graph)
   }
 }
 
@@ -55,3 +67,75 @@ extension Conversion where Body == Never {
 /// classes or structures that extend this enumeration. For example, the ``Conversion/map(_:)``
 /// operator returns a ``Map`` conversion.
 public enum Conversions {}
+
+extension Conversions {
+  public struct Result<Value> {
+    public var output: FileTreeResult<Value>.Output
+    public var diagnostics: DiagnosticReport<FileTreeLocation>
+
+    public init(
+      output: FileTreeResult<Value>.Output,
+      diagnostics: DiagnosticReport<FileTreeLocation> = .init()
+    ) {
+      self.output = output
+      self.diagnostics = diagnostics
+    }
+  }
+}
+
+extension Conversions.Result: Sendable where Value: Sendable {}
+
+extension Conversions.Result {
+  public static func value(
+    _ value: Value,
+    diagnostics: DiagnosticReport<FileTreeLocation> = .init()
+  ) -> Self {
+    Self(output: .value(value), diagnostics: diagnostics)
+  }
+
+  public static func invalid(
+    diagnostics: DiagnosticReport<FileTreeLocation>
+  ) -> Self {
+    Self(output: .invalid, diagnostics: diagnostics)
+  }
+}
+
+extension Conversions.Result: Equatable where Value: Equatable {}
+
+extension Conversion {
+  public func apply(_ input: Input, in graph: SourceGraph) -> Conversions.Result<Output> {
+    do {
+      return .value(try apply(input))
+    } catch {
+      return .invalid(
+        diagnostics: .init(
+          diagnostics: [
+            Diagnostic(
+              severity: .error,
+              code: "file-tree.conversion.failed",
+              message: String(describing: error)
+            )
+          ]
+        )
+      )
+    }
+  }
+
+  public func unapply(_ output: Output, in graph: SourceGraph) -> Conversions.Result<Input> {
+    do {
+      return .value(try unapply(output))
+    } catch {
+      return .invalid(
+        diagnostics: .init(
+          diagnostics: [
+            Diagnostic(
+              severity: .error,
+              code: "file-tree.conversion.print.failed",
+              message: String(describing: error)
+            )
+          ]
+        )
+      )
+    }
+  }
+}

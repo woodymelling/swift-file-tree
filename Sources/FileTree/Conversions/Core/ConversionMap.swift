@@ -45,10 +45,52 @@ extension Conversions {
       try self.downstream.apply(self.upstream.apply(input))
     }
 
+    public func apply(_ input: Upstream.Input, in graph: SourceGraph) -> Conversions.Result<Downstream.Output> {
+      let upstreamResult = upstream.apply(input, in: graph)
+      var diagnostics = upstreamResult.diagnostics
+
+      switch upstreamResult.output {
+      case let .value(upstreamOutput) where !diagnostics.hasErrors:
+        let downstreamResult = downstream.apply(upstreamOutput, in: graph)
+        diagnostics.append(contentsOf: downstreamResult.diagnostics)
+
+        switch downstreamResult.output {
+        case let .value(output) where !diagnostics.hasErrors:
+          return .value(output, diagnostics: diagnostics)
+        case .value, .invalid:
+          return .invalid(diagnostics: diagnostics)
+        }
+
+      case .value, .invalid:
+        return .invalid(diagnostics: diagnostics)
+      }
+    }
+
     @inlinable
     @inline(__always)
     public func unapply(_ output: Downstream.Output) rethrows -> Upstream.Input {
       try self.upstream.unapply(self.downstream.unapply(output))
+    }
+
+    public func unapply(_ output: Downstream.Output, in graph: SourceGraph) -> Conversions.Result<Upstream.Input> {
+      let downstreamResult = downstream.unapply(output, in: graph)
+      var diagnostics = downstreamResult.diagnostics
+
+      switch downstreamResult.output {
+      case let .value(downstreamInput) where !diagnostics.hasErrors:
+        let upstreamResult = upstream.unapply(downstreamInput, in: graph)
+        diagnostics.append(contentsOf: upstreamResult.diagnostics)
+
+        switch upstreamResult.output {
+        case let .value(input) where !diagnostics.hasErrors:
+          return .value(input, diagnostics: diagnostics)
+        case .value, .invalid:
+          return .invalid(diagnostics: diagnostics)
+        }
+
+      case .value, .invalid:
+        return .invalid(diagnostics: diagnostics)
+      }
     }
   }
 }

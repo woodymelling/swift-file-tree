@@ -32,7 +32,7 @@ public struct FileTreeLocation: Hashable, Sendable {
     }
 }
 
-public struct FileTreeResult<Value: Sendable>: Sendable {
+public struct FileTreeResult<Value> {
     public var output: Output
     public var graph: SourceGraph
     public var diagnostics: DiagnosticReport<FileTreeLocation>
@@ -47,11 +47,14 @@ public struct FileTreeResult<Value: Sendable>: Sendable {
         self.diagnostics = diagnostics
     }
 
-    public enum Output: Sendable {
+    public enum Output {
         case value(Value)
         case invalid
     }
 }
+
+extension FileTreeResult: Sendable where Value: Sendable {}
+extension FileTreeResult.Output: Sendable where Value: Sendable {}
 
 extension FileTreeResult {
     public static func value(

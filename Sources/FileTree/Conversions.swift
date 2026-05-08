@@ -26,21 +26,14 @@ where Downstream.Input == Upstream.Content, Downstream.Output: Sendable {
 
         switch upstreamResult.output {
         case let .value(value):
-            do {
-                return .value(
-                    try self.downstream.apply(value),
-                    graph: upstreamResult.graph,
-                    diagnostics: upstreamResult.diagnostics
-                )
-            } catch {
-                var diagnostics = upstreamResult.diagnostics
-                diagnostics.append(
-                    Diagnostic<FileTreeLocation>(
-                        severity: .error,
-                        code: "file-tree.conversion.failed",
-                        message: String(describing: error)
-                    )
-                )
+            let conversionResult = downstream.apply(value, in: upstreamResult.graph)
+            var diagnostics = upstreamResult.diagnostics
+            diagnostics.append(contentsOf: conversionResult.diagnostics)
+
+            switch conversionResult.output {
+            case let .value(output) where !diagnostics.hasErrors:
+                return .value(output, graph: upstreamResult.graph, diagnostics: diagnostics)
+            case .value, .invalid:
                 return .invalid(graph: upstreamResult.graph, diagnostics: diagnostics)
             }
 
@@ -341,21 +334,14 @@ where Upstream.Content == Downstream.Input?, Downstream.Output: Sendable {
                 return .value(nil, graph: upstreamResult.graph, diagnostics: upstreamResult.diagnostics)
             }
 
-            do {
-                return .value(
-                    try downstream.apply(input),
-                    graph: upstreamResult.graph,
-                    diagnostics: upstreamResult.diagnostics
-                )
-            } catch {
-                var diagnostics = upstreamResult.diagnostics
-                diagnostics.append(
-                    Diagnostic<FileTreeLocation>(
-                        severity: .error,
-                        code: "file-tree.conversion.failed",
-                        message: String(describing: error)
-                    )
-                )
+            let conversionResult = downstream.apply(input, in: upstreamResult.graph)
+            var diagnostics = upstreamResult.diagnostics
+            diagnostics.append(contentsOf: conversionResult.diagnostics)
+
+            switch conversionResult.output {
+            case let .value(output) where !diagnostics.hasErrors:
+                return .value(.some(output), graph: upstreamResult.graph, diagnostics: diagnostics)
+            case .value, .invalid:
                 return .invalid(graph: upstreamResult.graph, diagnostics: diagnostics)
             }
 
