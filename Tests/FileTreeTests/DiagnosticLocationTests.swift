@@ -130,6 +130,64 @@ struct DiagnosticLocationTests {
             == "event/event-info.yml"
         )
     }
+
+    @Test func formattedDiagnosticIncludesPath() {
+        let report = DiagnosticReport(
+            diagnostics: [
+                Diagnostic<FileTreeLocation>(
+                    severity: .error,
+                    code: "ome.yaml.decode.failed",
+                    message: "Missing name",
+                    location: .init(path: "event-info.yml")
+                )
+            ]
+        )
+
+        #expect(
+            report.formatted(in: .init())
+            == "event-info.yml: error: ome.yaml.decode.failed: Missing name"
+        )
+    }
+
+    @Test func formattedDiagnosticIncludesPathLineAndColumn() {
+        let report = DiagnosticReport(
+            diagnostics: [
+                Diagnostic<FileTreeLocation>(
+                    severity: .warning,
+                    code: "ome.schedule.performance.title.missing",
+                    message: "Using an empty title",
+                    location: .init(
+                        sourceLocation: .init(
+                            path: "schedules/2024-06-12.yml",
+                            span: .init(start: .init(line: 12, column: 9))
+                        )
+                    )
+                )
+            ]
+        )
+
+        #expect(
+            report.formatted(in: .init())
+            == "schedules/2024-06-12.yml:12:9: warning: ome.schedule.performance.title.missing: Using an empty title"
+        )
+    }
+
+    @Test func formattedDiagnosticFallsBackWhenLocationIsMissing() {
+        let report = DiagnosticReport(
+            diagnostics: [
+                Diagnostic<FileTreeLocation>(
+                    severity: .error,
+                    code: "ome.validation.failed",
+                    message: "Validation failed"
+                )
+            ]
+        )
+
+        #expect(
+            report.formatted(in: .init())
+            == "error: ome.validation.failed: Validation failed"
+        )
+    }
 }
 
 private struct LocationDiagnosticConversion: Conversion {

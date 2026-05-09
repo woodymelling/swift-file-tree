@@ -142,6 +142,12 @@ extension DiagnosticReport where Location == FileTreeLocation {
         )
     }
 
+    public func formatted(in graph: SourceGraph) -> String {
+        resolved(in: graph).diagnostics
+            .map(\.formatted)
+            .joined(separator: "\n")
+    }
+
     public func prefixingPaths(with prefix: SourceGraph.Path) -> Self {
         DiagnosticReport(
             diagnostics: diagnostics.map { diagnostic in
@@ -153,6 +159,22 @@ extension DiagnosticReport where Location == FileTreeLocation {
                 )
             }
         )
+    }
+}
+
+extension Diagnostic where Location == SourceGraph.Location {
+    var formatted: String {
+        let message = "\(severity.rawValue): \(code.rawValue): \(message)"
+
+        guard let location else {
+            return message
+        }
+
+        if let start = location.span?.start {
+            return "\(location.path.rawValue):\(start.line):\(start.column): \(message)"
+        }
+
+        return "\(location.path.rawValue): \(message)"
     }
 }
 
