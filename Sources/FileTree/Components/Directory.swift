@@ -20,8 +20,9 @@ public struct Directory<Component: FileTreeReader>: FileTreeReader {
         let directoryURL = url.appending(component: self.path.description)
 
         let result = try component.read(from: directoryURL)
-        let directoryIdentity = SourceGraph.Node.Identity.directory(.init(rawValue: self.path.description))
-        var graph = result.graph.prefixingPaths(with: .init(rawValue: self.path.description))
+        let prefix = SourceGraph.Path(rawValue: self.path.description)
+        let directoryIdentity = SourceGraph.Node.Identity.directory(prefix)
+        var graph = result.graph.prefixingPaths(with: prefix)
         let directoryID = graph.insert(directoryIdentity)
 
         for childID in graph.rootNodeIDs where childID != directoryID {
@@ -29,7 +30,11 @@ public struct Directory<Component: FileTreeReader>: FileTreeReader {
         }
         graph.root = directoryID
 
-        return FileTreeResult(output: result.output, graph: graph, diagnostics: result.diagnostics)
+        return FileTreeResult(
+            output: result.output,
+            graph: graph,
+            diagnostics: result.diagnostics.prefixingPaths(with: prefix)
+        )
     }
 
     // public func write(_ data: Component.Content, to url: URL) throws {
@@ -52,8 +57,9 @@ extension Directory: FileTreeWriter where Component: FileTreeWriter {
         }
 
         let result = try component.write(content, to: directoryURL)
-        let directoryIdentity = SourceGraph.Node.Identity.directory(.init(rawValue: self.path.description))
-        var graph = result.graph.prefixingPaths(with: .init(rawValue: self.path.description))
+        let prefix = SourceGraph.Path(rawValue: self.path.description)
+        let directoryIdentity = SourceGraph.Node.Identity.directory(prefix)
+        var graph = result.graph.prefixingPaths(with: prefix)
         let directoryID = graph.insert(directoryIdentity)
 
         for childID in graph.rootNodeIDs where childID != directoryID {
@@ -61,7 +67,11 @@ extension Directory: FileTreeWriter where Component: FileTreeWriter {
         }
         graph.root = directoryID
 
-        return FileTreeResult(output: result.output, graph: graph, diagnostics: result.diagnostics)
+        return FileTreeResult(
+            output: result.output,
+            graph: graph,
+            diagnostics: result.diagnostics.prefixingPaths(with: prefix)
+        )
     }
 }
 
@@ -90,27 +100,32 @@ extension Directory {
 
             var contents: [DirectoryContent<Component.Content>] = []
             var diagnostics = DiagnosticReport<FileTreeLocation>()
+            var graph = SourceGraph()
             var isInvalid = false
 
             for directoryURL in directoryNames {
+                let directoryName = directoryURL.lastPathComponent
                 let result = try component.read(from: directoryURL)
-                diagnostics.append(contentsOf: result.diagnostics)
+                let prefix = SourceGraph.Path(rawValue: directoryName)
+                diagnostics.append(contentsOf: result.diagnostics.prefixingPaths(with: prefix))
+
+                var childGraph = result.graph.prefixingPaths(with: prefix)
+                let directoryID = childGraph.insert(.directory(prefix))
+                for childID in childGraph.rootNodeIDs where childID != directoryID {
+                    childGraph.connect(directoryID, to: childID, kind: .contains)
+                }
+                childGraph.root = directoryID
+                graph.append(childGraph)
 
                 switch result.output {
                 case let .value(value):
-                    contents.append(DirectoryContent(directoryName: directoryURL.lastPathComponent, components: value))
+                    contents.append(DirectoryContent(directoryName: directoryName, components: value))
                 case .invalid:
                     isInvalid = true
                 }
             }
 
-            var graph = SourceGraph()
-            for directoryContent in contents {
-                let identity = SourceGraph.Node.Identity.directory(.init(rawValue: directoryContent.directoryName))
-                _ = graph.insert(identity)
-            }
-
-            guard !isInvalid else {
+            guard !isInvalid && !diagnostics.hasErrors else {
                 return .invalid(graph: graph, diagnostics: diagnostics)
             }
 
@@ -183,13 +198,14 @@ extension Directory.Many: FileTreeWriter where Component: FileTreeWriter {
             }
 
             let result = try component.write(directoryContent.components, to: directoryURL)
-            diagnostics.append(contentsOf: result.diagnostics)
 
             let directoryIdentity = SourceGraph.Node.Identity.directory(
                 .init(rawValue: directoryContent.directoryName)
             )
+            let prefix = SourceGraph.Path(rawValue: directoryContent.directoryName)
+            diagnostics.append(contentsOf: result.diagnostics.prefixingPaths(with: prefix))
             var childGraph = result.graph.prefixingPaths(
-                with: .init(rawValue: directoryContent.directoryName)
+                with: prefix
             )
             let directoryID = childGraph.insert(directoryIdentity)
 
@@ -242,11 +258,20 @@ extension Directory {
             else { return .value(nil) }
 
             let result = try component.read(from: directoryURL)
+            let prefix = SourceGraph.Path(rawValue: self.path.description)
+            let directoryIdentity = SourceGraph.Node.Identity.directory(prefix)
+            var graph = result.graph.prefixingPaths(with: prefix)
+            let directoryID = graph.insert(directoryIdentity)
+
+            for childID in graph.rootNodeIDs where childID != directoryID {
+                graph.connect(directoryID, to: childID, kind: .contains)
+            }
+            graph.root = directoryID
 
             return FileTreeResult(
                 output: result.output.map { Swift.Optional.some($0) },
-                graph: result.graph,
-                diagnostics: result.diagnostics
+                graph: graph,
+                diagnostics: result.diagnostics.prefixingPaths(with: prefix)
             )
         }
     }

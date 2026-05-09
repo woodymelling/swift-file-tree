@@ -141,6 +141,44 @@ extension DiagnosticReport where Location == FileTreeLocation {
             }
         )
     }
+
+    public func prefixingPaths(with prefix: SourceGraph.Path) -> Self {
+        DiagnosticReport(
+            diagnostics: diagnostics.map { diagnostic in
+                Diagnostic(
+                    severity: diagnostic.severity,
+                    code: diagnostic.code,
+                    message: diagnostic.message,
+                    location: diagnostic.location?.prefixingPath(with: prefix)
+                )
+            }
+        )
+    }
+}
+
+extension FileTreeLocation {
+    public func prefixingPath(with prefix: SourceGraph.Path) -> Self {
+        var copy = self
+
+        if let path {
+            copy.path = prefix.appending(.init(rawValue: path)).rawValue
+        }
+
+        if let sourceLocation {
+            copy.sourceLocation = sourceLocation.prefixingPath(with: prefix)
+        }
+
+        return copy
+    }
+}
+
+extension SourceGraph.Location {
+    public func prefixingPath(with prefix: SourceGraph.Path) -> Self {
+        SourceGraph.Location(
+            path: prefix.appending(path),
+            span: span
+        )
+    }
 }
 
 public struct Diagnostic<Location: Sendable>: Sendable {
