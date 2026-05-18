@@ -277,6 +277,39 @@ extension Directory {
     }
 }
 
+extension Directory.Optional: FileTreeWriter where Component: FileTreeWriter {
+    public func write(
+        _ content: Component.Content?,
+        to url: URL
+    ) throws -> FileTreeResult<Component.Content?> {
+        guard let content else {
+            return .value(nil)
+        }
+
+        let directoryURL = url.appending(component: self.path.description)
+        if !FileManager.default.fileExists(atPath: directoryURL.path()) {
+            try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: false)
+        }
+
+        let result = try component.write(content, to: directoryURL)
+        let prefix = SourceGraph.Path(rawValue: self.path.description)
+        let directoryIdentity = SourceGraph.Node.Identity.directory(prefix)
+        var graph = result.graph.prefixingPaths(with: prefix)
+        let directoryID = graph.insert(directoryIdentity)
+
+        for childID in graph.rootNodeIDs where childID != directoryID {
+            graph.connect(directoryID, to: childID, kind: .contains)
+        }
+        graph.root = directoryID
+
+        return FileTreeResult(
+            output: result.output.map { Swift.Optional.some($0) },
+            graph: graph,
+            diagnostics: result.diagnostics.prefixingPaths(with: prefix)
+        )
+    }
+}
+
 // MARK: DirectoryContent
 public struct DirectoryContent<T>  {
     public var directoryName: String

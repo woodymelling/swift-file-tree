@@ -64,7 +64,7 @@ public struct File: FileTreeReader, FileTreeWriter, Sendable {
 }
 
 extension File {
-    public struct Many: FileTreeReader {
+    public struct Many: FileTreeReader, FileTreeWriter {
         public typealias Content = [FileContent<Data>]
         let fileType: FileExtension?
 
@@ -102,7 +102,10 @@ extension File {
             return .value(contents, graph: graph)
         }
 
-        public func write(_ data: [FileContent<Data>], to url: URL) throws {
+        public func write(
+            _ data: [FileContent<Data>],
+            to url: URL
+        ) throws -> FileTreeResult<[FileContent<Data>]> {
 //            guard writingToEmptyDirectory
 //            else {
 //                reportIssue("""
@@ -126,6 +129,12 @@ extension File {
 //                return
 //            }
 
+            if !FileManager.default.fileExists(atPath: url.path()) {
+                try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            }
+
+            var graph = SourceGraph()
+
             for fileContent in data {
 
                 let fileURL = if let fileType {
@@ -135,7 +144,16 @@ extension File {
                 }
 
                 try fileContent.data.write(to: fileURL, options: [.atomic])
+
+                let path = if let fileType {
+                    SourceGraph.Path(rawValue: "\(fileContent.fileName).\(fileType.rawValue)")
+                } else {
+                    fileContent.path
+                }
+                _ = graph.insert(.file(path))
             }
+
+            return .value(data, graph: graph)
         }
     }
 }
