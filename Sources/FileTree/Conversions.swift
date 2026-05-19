@@ -54,12 +54,21 @@ extension _ConvertedFileTreeReader: FileTreeWriter where Upstream: FileTreeWrite
         _ content: Downstream.Output,
         to url: URL
     ) throws -> FileTreeResult<Downstream.Output> {
-        let conversionResult = downstream.unapply(content, in: .init())
+        try write(content, to: url, context: .empty)
+    }
+
+    public func write(
+        _ content: Downstream.Output,
+        to url: URL,
+        context: FileTreeWriteContext
+    ) throws -> FileTreeResult<Downstream.Output> {
+        let conversionContext = context.contextForUpstream(upstream, at: url)
+        let conversionResult = downstream.unapply(content, in: conversionContext)
         var diagnostics = conversionResult.diagnostics
 
         switch conversionResult.output {
         case let .value(upstreamContent) where !diagnostics.hasErrors:
-            let upstreamResult = try upstream.write(upstreamContent, to: url)
+            let upstreamResult = try upstream.write(upstreamContent, to: url, context: conversionContext)
             diagnostics.append(contentsOf: upstreamResult.diagnostics)
 
             switch upstreamResult.output {
@@ -71,6 +80,26 @@ extension _ConvertedFileTreeReader: FileTreeWriter where Upstream: FileTreeWrite
 
         case .value, .invalid:
             return .invalid(diagnostics: diagnostics)
+        }
+    }
+}
+
+extension FileTreeWriteContext {
+    func contextForUpstream<Upstream: FileTreeReader>(
+        _ upstream: Upstream,
+        at url: URL
+    ) -> FileTreeWriteContext {
+        guard sourceURL != nil else { return self }
+
+        do {
+            let sourceResult = try upstream.read(from: url)
+            var copy = self
+            copy.sourceURL = url
+            copy.graph = sourceResult.graph
+            copy.rootPath = nil
+            return copy
+        } catch {
+            return self
         }
     }
 }
@@ -240,6 +269,44 @@ public struct FileContentConversion<AppliedConversion: Conversion>: Conversion {
             return .invalid(diagnostics: result.diagnostics)
         }
     }
+
+    public func unapply(
+        _ output: FileContent<AppliedConversion.Output>,
+        in context: FileTreeWriteContext
+    ) -> Conversions.Result<FileContent<AppliedConversion.Input>> {
+        let result = conversion.unapply(output.data, in: context.rooted(at: output))
+
+        switch result.output {
+        case let .value(input) where !result.diagnostics.hasErrors:
+            do {
+                return .value(
+                    try FileContent(
+                        fileName: output.fileName,
+                        fileType: output.fileType,
+                        data: input
+                    ),
+                    diagnostics: result.diagnostics
+                )
+            } catch {
+                return .invalid(
+                    diagnostics: result.diagnostics.merging(
+                        .init(
+                            diagnostics: [
+                                Diagnostic(
+                                    severity: .error,
+                                    code: "file-tree.file-content.print.failed",
+                                    message: String(describing: error)
+                                )
+                            ]
+                        )
+                    )
+                )
+            }
+
+        case .value, .invalid:
+            return .invalid(diagnostics: result.diagnostics)
+        }
+    }
 }
 
 extension FileContentConversion: Sendable where AppliedConversion: Sendable {}
@@ -293,6 +360,27 @@ public struct DirectoryContentConversion<AppliedConversion: Conversion>: Convers
         in graph: SourceGraph
     ) -> Conversions.Result<DirectoryContent<AppliedConversion.Input>> {
         let result = conversion.unapply(output.components, in: graph.rooted(at: output))
+
+        switch result.output {
+        case let .value(input) where !result.diagnostics.hasErrors:
+            return .value(
+                DirectoryContent(
+                    directoryName: output.directoryName,
+                    components: input
+                ),
+                diagnostics: result.diagnostics
+            )
+
+        case .value, .invalid:
+            return .invalid(diagnostics: result.diagnostics)
+        }
+    }
+
+    public func unapply(
+        _ output: DirectoryContent<AppliedConversion.Output>,
+        in context: FileTreeWriteContext
+    ) -> Conversions.Result<DirectoryContent<AppliedConversion.Input>> {
+        let result = conversion.unapply(output.components, in: context.rooted(at: output))
 
         switch result.output {
         case let .value(input) where !result.diagnostics.hasErrors:

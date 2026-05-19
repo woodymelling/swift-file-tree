@@ -32,6 +32,8 @@
 
   @Sendable func unapply(_ input: Output, in graph: SourceGraph) -> Conversions.Result<Input>
 
+  @Sendable func unapply(_ input: Output, in context: FileTreeWriteContext) -> Conversions.Result<Input>
+
   @ConversionBuilder
   var body: Body { get }
 }
@@ -52,6 +54,10 @@ where Body: Conversion, Body.Input == Input, Body.Output == Output {
 
   public func unapply(_ output: Output, in graph: SourceGraph) -> Conversions.Result<Input> {
     self.body.unapply(output, in: graph)
+  }
+
+  public func unapply(_ output: Output, in context: FileTreeWriteContext) -> Conversions.Result<Input> {
+    self.body.unapply(output, in: context)
   }
 }
 
@@ -137,5 +143,9 @@ extension Conversion {
         )
       )
     }
+  }
+
+  public func unapply(_ output: Output, in context: FileTreeWriteContext) -> Conversions.Result<Input> {
+    unapply(output, in: context.graph)
   }
 }

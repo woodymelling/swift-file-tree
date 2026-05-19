@@ -78,6 +78,36 @@ extension Conversions {
 
       return .value(inputs, diagnostics: diagnostics)
     }
+
+    public func unapply(
+      _ output: [C.Output],
+      in context: FileTreeWriteContext
+    ) -> Conversions.Result<[C.Input]> {
+      var inputs: [C.Input] = []
+      var diagnostics = DiagnosticReport<FileTreeLocation>()
+      var isInvalid = false
+
+      inputs.reserveCapacity(output.count)
+
+      for element in output {
+        let result = transform.unapply(element, in: context.rooted(at: element))
+        diagnostics.append(contentsOf: result.diagnostics)
+
+        switch result.output {
+        case let .value(input) where !result.diagnostics.hasErrors:
+          inputs.append(input)
+
+        case .value, .invalid:
+          isInvalid = true
+        }
+      }
+
+      guard !isInvalid && !diagnostics.hasErrors else {
+        return .invalid(diagnostics: diagnostics)
+      }
+
+      return .value(inputs, diagnostics: diagnostics)
+    }
   }
 
 }

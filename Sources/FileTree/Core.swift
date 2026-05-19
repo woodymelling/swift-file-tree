@@ -18,6 +18,11 @@ public protocol FileTreeReader<Content> {
 // MARK: Protocol
 public protocol FileTreeWriter<Content>: FileTreeReader {
     func write(_ content: Content, to url: URL) throws -> FileTreeResult<Content>
+    func write(
+        _ content: Content,
+        to url: URL,
+        context: FileTreeWriteContext
+    ) throws -> FileTreeResult<Content>
 }
 
 struct ErrorAtURL: Error {
@@ -52,6 +57,33 @@ extension FileTreeReader where Body: FileTreeReader, Body.Content == Content {
 extension FileTreeWriter where Body: FileTreeWriter, Body.Content == Content {
     public func write(_ content: Content, to url: URL) throws -> FileTreeResult<Content> {
         try body.write(content, to: url)
+    }
+
+    public func write(
+        _ content: Content,
+        to url: URL,
+        context: FileTreeWriteContext
+    ) throws -> FileTreeResult<Content> {
+        try body.write(content, to: url, context: context)
+    }
+}
+
+extension FileTreeWriter {
+    public func write(
+        _ content: Content,
+        to url: URL,
+        context: FileTreeWriteContext
+    ) throws -> FileTreeResult<Content> {
+        try write(content, to: url)
+    }
+
+    public func rewrite(_ content: Content, at url: URL) throws -> FileTreeResult<Content> {
+        let sourceResult = try read(from: url)
+        return try write(
+            content,
+            to: url,
+            context: FileTreeWriteContext(sourceURL: url, graph: sourceResult.graph)
+        )
     }
 }
 
@@ -104,5 +136,13 @@ public struct FileTree<Component: FileTreeReader>: FileTreeReader {
 extension FileTree: FileTreeWriter where Component: FileTreeWriter {
     public func write(_ content: Component.Content, to url: URL) throws -> FileTreeResult<Component.Content> {
         try self.component.write(content, to: url)
+    }
+
+    public func write(
+        _ content: Component.Content,
+        to url: URL,
+        context: FileTreeWriteContext
+    ) throws -> FileTreeResult<Component.Content> {
+        try self.component.write(content, to: url, context: context)
     }
 }

@@ -50,13 +50,25 @@ public struct Directory<Component: FileTreeReader>: FileTreeReader {
 
 extension Directory: FileTreeWriter where Component: FileTreeWriter {
     public func write(_ content: Component.Content, to url: URL) throws -> FileTreeResult<Component.Content> {
+        try write(content, to: url, context: .empty)
+    }
+
+    public func write(
+        _ content: Component.Content,
+        to url: URL,
+        context: FileTreeWriteContext
+    ) throws -> FileTreeResult<Component.Content> {
         let directoryURL = url.appending(component: self.path.description)
 
         if !FileManager.default.fileExists(atPath: directoryURL.path()) {
             try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: false)
         }
 
-        let result = try component.write(content, to: directoryURL)
+        let result = try component.write(
+            content,
+            to: directoryURL,
+            context: context.descending(into: self.path.description)
+        )
         let prefix = SourceGraph.Path(rawValue: self.path.description)
         let directoryIdentity = SourceGraph.Node.Identity.directory(prefix)
         var graph = result.graph.prefixingPaths(with: prefix)
@@ -181,6 +193,14 @@ extension Directory.Many: FileTreeWriter where Component: FileTreeWriter {
         _ content: [DirectoryContent<Component.Content>],
         to url: URL
     ) throws -> FileTreeResult<[DirectoryContent<Component.Content>]> {
+        try write(content, to: url, context: .empty)
+    }
+
+    public func write(
+        _ content: [DirectoryContent<Component.Content>],
+        to url: URL,
+        context: FileTreeWriteContext
+    ) throws -> FileTreeResult<[DirectoryContent<Component.Content>]> {
         if !FileManager.default.fileExists(atPath: url.path()) {
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         }
@@ -197,7 +217,11 @@ extension Directory.Many: FileTreeWriter where Component: FileTreeWriter {
                 try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: false)
             }
 
-            let result = try component.write(directoryContent.components, to: directoryURL)
+            let result = try component.write(
+                directoryContent.components,
+                to: directoryURL,
+                context: context.descending(into: directoryContent.directoryName)
+            )
 
             let directoryIdentity = SourceGraph.Node.Identity.directory(
                 .init(rawValue: directoryContent.directoryName)
@@ -282,6 +306,14 @@ extension Directory.Optional: FileTreeWriter where Component: FileTreeWriter {
         _ content: Component.Content?,
         to url: URL
     ) throws -> FileTreeResult<Component.Content?> {
+        try write(content, to: url, context: .empty)
+    }
+
+    public func write(
+        _ content: Component.Content?,
+        to url: URL,
+        context: FileTreeWriteContext
+    ) throws -> FileTreeResult<Component.Content?> {
         guard let content else {
             return .value(nil)
         }
@@ -291,7 +323,11 @@ extension Directory.Optional: FileTreeWriter where Component: FileTreeWriter {
             try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: false)
         }
 
-        let result = try component.write(content, to: directoryURL)
+        let result = try component.write(
+            content,
+            to: directoryURL,
+            context: context.descending(into: self.path.description)
+        )
         let prefix = SourceGraph.Path(rawValue: self.path.description)
         let directoryIdentity = SourceGraph.Node.Identity.directory(prefix)
         var graph = result.graph.prefixingPaths(with: prefix)

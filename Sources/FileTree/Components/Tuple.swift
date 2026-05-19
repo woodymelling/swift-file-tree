@@ -54,4 +54,26 @@ extension TupleFileSystemComponent: FileTreeWriter where repeat each T: FileTree
             return .invalid(graph: graph, diagnostics: diagnostics)
         }
     }
+
+    public func write(
+        _ content: Content,
+        to url: URL,
+        context: FileTreeWriteContext
+    ) throws -> FileTreeResult<Content> {
+        let results = (repeat try (each value).write((each content), to: url, context: context))
+        var diagnostics = DiagnosticReport<FileTreeLocation>()
+        repeat diagnostics.append(contentsOf: (each results).diagnostics)
+        var graph = SourceGraph()
+        repeat graph.append((each results).graph)
+
+        do {
+            let output = try (repeat (each results).output.requiredValue)
+            guard !diagnostics.hasErrors else {
+                return .invalid(graph: graph, diagnostics: diagnostics)
+            }
+            return .value(output, graph: graph, diagnostics: diagnostics)
+        } catch {
+            return .invalid(graph: graph, diagnostics: diagnostics)
+        }
+    }
 }
