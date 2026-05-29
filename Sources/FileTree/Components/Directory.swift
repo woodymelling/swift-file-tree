@@ -91,6 +91,9 @@ extension Directory: FileTreeWriter where Component: FileTreeWriter {
 @TaskLocal
 public var writingToEmptyDirectory = false
 
+@TaskLocal
+public var deletingNilOptionalWrites = false
+
 
 extension Directory {
     public struct Many: FileTreeReader {
@@ -314,11 +317,16 @@ extension Directory.Optional: FileTreeWriter where Component: FileTreeWriter {
         to url: URL,
         context: FileTreeWriteContext
     ) throws -> FileTreeResult<Component.Content?> {
+        let directoryURL = url.appending(component: self.path.description)
+
         guard let content else {
+            if deletingNilOptionalWrites,
+               FileManager.default.fileExists(atPath: directoryURL.path()) {
+                try FileManager.default.removeItem(at: directoryURL)
+            }
             return .value(nil)
         }
 
-        let directoryURL = url.appending(component: self.path.description)
         if !FileManager.default.fileExists(atPath: directoryURL.path()) {
             try FileManager.default.createDirectory(at: directoryURL, withIntermediateDirectories: false)
         }

@@ -120,6 +120,65 @@ struct RewriteTests {
         )
     }
 
+    @Test func optionalConvertedFileWritePrintsPresentValue() throws {
+        let directory = try RewriteTemporaryDirectory()
+
+        let tree = File.Optional("event", "txt")
+            .convert(RewriteNameConversion())
+
+        let result = try tree.write("New", to: directory.url)
+
+        #expect(try result.output.requiredValue == "New")
+        #expect(try directory.text(at: "event.txt") == "name: New\n")
+    }
+
+    @Test func optionalConvertedFileWriteSkipsNilValue() throws {
+        let directory = try RewriteTemporaryDirectory()
+        try Data("name: Old\n# keep\n".utf8)
+            .write(to: directory.url.appendingPathComponent("event", withType: "txt"))
+
+        let tree = File.Optional("event", "txt")
+            .convert(RewriteNameConversion())
+
+        let result = try tree.write(nil, to: directory.url)
+
+        #expect(try result.output.requiredValue == nil)
+        #expect(try directory.text(at: "event.txt") == "name: Old\n# keep\n")
+    }
+
+    @Test func optionalConvertedFileWriteDeletesNilValueWhenEnabled() throws {
+        let directory = try RewriteTemporaryDirectory()
+        try Data("name: Old\n# keep\n".utf8)
+            .write(to: directory.url.appendingPathComponent("event", withType: "txt"))
+
+        let tree = File.Optional("event", "txt")
+            .convert(RewriteNameConversion())
+
+        let result = try $deletingNilOptionalWrites.withValue(true) {
+            try tree.write(nil, to: directory.url)
+        }
+
+        #expect(try result.output.requiredValue == nil)
+        #expect(!FileManager.default.fileExists(atPath: directory.url.appendingPathComponent("event", withType: "txt").path()))
+    }
+
+    @Test func optionalConvertedFileRewritePassesExistingDataToConvertedWriter() throws {
+        let directory = try RewriteTemporaryDirectory()
+        try Data("name: Old\n# keep\n".utf8)
+            .write(to: directory.url.appendingPathComponent("event", withType: "txt"))
+
+        let tree = File.Optional("event", "txt")
+            .convert(RewriteNameConversion())
+
+        let result = try tree.rewrite("New", at: directory.url)
+
+        #expect(try result.output.requiredValue == "New")
+        #expect(
+            try directory.text(at: "event.txt")
+            == "name: New\n# keep\n"
+        )
+    }
+
     @Test func writeWithoutSourceContextUsesCanonicalOutput() throws {
         let directory = try RewriteTemporaryDirectory()
         let tree = File("event", "txt")

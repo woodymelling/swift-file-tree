@@ -173,8 +173,63 @@ struct TupleWriteTests {
         #expect(result.graph.containsNode(.file("winter-market/venue.txt")))
     }
 
+    @Test func optionalFileWriteWritesPresentData() throws {
+        let directory = try TupleWriteTemporaryDirectory()
+
+        let result = try File.Optional("event", "txt")
+            .write(Data("Wicked Woods".utf8), to: directory.url)
+
+        let event = try String(
+            decoding: Data(contentsOf: directory.url.appendingPathComponent("event", withType: "txt")),
+            as: UTF8.self
+        )
+
+        let output = try result.output.requiredValue
+        #expect(output == Data("Wicked Woods".utf8))
+        #expect(event == "Wicked Woods")
+        #expect(result.graph.containsNode(.file("event.txt")))
+    }
+
+    @Test func optionalFileWriteSkipsNilFile() throws {
+        let directory = try TupleWriteTemporaryDirectory()
+        try Data("Existing".utf8)
+            .write(to: directory.url.appendingPathComponent("event", withType: "txt"))
+
+        let result = try File.Optional("event", "txt")
+            .write(nil, to: directory.url)
+
+        let output = try result.output.requiredValue
+        let event = try String(
+            decoding: Data(contentsOf: directory.url.appendingPathComponent("event", withType: "txt")),
+            as: UTF8.self
+        )
+        #expect(output == nil)
+        #expect(event == "Existing")
+        #expect(result.graph.nodes.isEmpty)
+    }
+
+    @Test func optionalFileWriteDeletesNilFileWhenEnabled() throws {
+        let directory = try TupleWriteTemporaryDirectory()
+        try Data("Existing".utf8)
+            .write(to: directory.url.appendingPathComponent("event", withType: "txt"))
+
+        let result = try $deletingNilOptionalWrites.withValue(true) {
+            try File.Optional("event", "txt")
+                .write(nil, to: directory.url)
+        }
+
+        let output = try result.output.requiredValue
+        #expect(output == nil)
+        #expect(!FileManager.default.fileExists(atPath: directory.url.appendingPathComponent("event", withType: "txt").path()))
+        #expect(result.graph.nodes.isEmpty)
+    }
+
     @Test func optionalDirectoryWriteSkipsNilDirectory() throws {
         let directory = try TupleWriteTemporaryDirectory()
+        let stagesURL = directory.url.appending(component: "stages")
+        try FileManager.default.createDirectory(at: stagesURL, withIntermediateDirectories: true)
+        try Data("Existing".utf8)
+            .write(to: stagesURL.appendingPathComponent("meadow", withType: "txt"))
 
         let result = try Directory.Optional("stages") {
             File.Many(withExtension: "txt")
@@ -183,7 +238,26 @@ struct TupleWriteTests {
 
         let output = try result.output.requiredValue
         #expect(output == nil)
-        #expect(!FileManager.default.fileExists(atPath: directory.url.appending(component: "stages").path()))
+        #expect(FileManager.default.fileExists(atPath: stagesURL.appendingPathComponent("meadow", withType: "txt").path()))
+    }
+
+    @Test func optionalDirectoryWriteDeletesNilDirectoryWhenEnabled() throws {
+        let directory = try TupleWriteTemporaryDirectory()
+        let stagesURL = directory.url.appending(component: "stages")
+        try FileManager.default.createDirectory(at: stagesURL, withIntermediateDirectories: true)
+        try Data("Existing".utf8)
+            .write(to: stagesURL.appendingPathComponent("meadow", withType: "txt"))
+
+        let result = try $deletingNilOptionalWrites.withValue(true) {
+            try Directory.Optional("stages") {
+                File.Many(withExtension: "txt")
+            }
+            .write(nil, to: directory.url)
+        }
+
+        let output = try result.output.requiredValue
+        #expect(output == nil)
+        #expect(!FileManager.default.fileExists(atPath: stagesURL.path()))
     }
 
     @Test func optionalDirectoryWritePrefixesGraphAndWritesPresentContent() throws {

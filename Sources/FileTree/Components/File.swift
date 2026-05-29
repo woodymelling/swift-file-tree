@@ -160,7 +160,7 @@ extension File {
 
 
 extension File {
-    public struct Optional: FileTreeReader {
+    public struct Optional: FileTreeReader, FileTreeWriter {
         public typealias Content = Data?
 
         public init(_ fileName: StaticString, _ fileType: FileExtension) {
@@ -180,6 +180,32 @@ extension File {
             do {
                 return .value(
                     try Data(contentsOf: fileUrl),
+                    graph: .node(.file(SourceGraph.Path(rawValue: "\(fileName.description).\(fileType.rawValue)")))
+                )
+            } catch {
+                throw Error(fileName: self.fileName.description, fileType: self.fileType, error: error)
+            }
+        }
+
+        public func write(_ data: Data?, to url: URL) throws -> FileTreeResult<Data?> {
+            let fileUrl = url.appendingPathComponent(fileName.description, withType: fileType)
+
+            guard let data else {
+                do {
+                    if deletingNilOptionalWrites,
+                       FileManager.default.fileExists(atPath: fileUrl.path()) {
+                        try FileManager.default.removeItem(at: fileUrl)
+                    }
+                    return .value(nil)
+                } catch {
+                    throw Error(fileName: self.fileName.description, fileType: self.fileType, error: error)
+                }
+            }
+
+            do {
+                try data.write(to: fileUrl)
+                return .value(
+                    data,
                     graph: .node(.file(SourceGraph.Path(rawValue: "\(fileName.description).\(fileType.rawValue)")))
                 )
             } catch {

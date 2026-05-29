@@ -585,6 +585,52 @@ where Upstream.Content == Downstream.Input?, Downstream.Output: Sendable {
     public typealias Content = Downstream.Output?
 }
 
+extension _OptionalConvertedFileTreeReader: FileTreeWriter where Upstream: FileTreeWriter {
+    public func write(
+        _ content: Downstream.Output?,
+        to url: URL
+    ) throws -> FileTreeResult<Downstream.Output?> {
+        try write(content, to: url, context: .empty)
+    }
+
+    public func write(
+        _ content: Downstream.Output?,
+        to url: URL,
+        context: FileTreeWriteContext
+    ) throws -> FileTreeResult<Downstream.Output?> {
+        let conversionContext = context.contextForUpstream(upstream, at: url)
+
+        guard let content else {
+            let upstreamResult = try upstream.write(nil, to: url, context: conversionContext)
+            switch upstreamResult.output {
+            case .value where !upstreamResult.diagnostics.hasErrors:
+                return .value(nil, graph: upstreamResult.graph, diagnostics: upstreamResult.diagnostics)
+            case .value, .invalid:
+                return .invalid(graph: upstreamResult.graph, diagnostics: upstreamResult.diagnostics)
+            }
+        }
+
+        let conversionResult = downstream.unapply(content, in: conversionContext)
+        var diagnostics = conversionResult.diagnostics
+
+        switch conversionResult.output {
+        case let .value(upstreamContent) where !diagnostics.hasErrors:
+            let upstreamResult = try upstream.write(.some(upstreamContent), to: url, context: conversionContext)
+            diagnostics.append(contentsOf: upstreamResult.diagnostics)
+
+            switch upstreamResult.output {
+            case .value where !diagnostics.hasErrors:
+                return .value(.some(content), graph: upstreamResult.graph, diagnostics: diagnostics)
+            case .value, .invalid:
+                return .invalid(graph: upstreamResult.graph, diagnostics: diagnostics)
+            }
+
+        case .value, .invalid:
+            return .invalid(diagnostics: diagnostics)
+        }
+    }
+}
+
 extension File.Optional {
     public func convert<C>(_ conversion: C) -> _OptionalConvertedFileTreeReader<Self, C>
     where Content == C.Input?, C: Conversion, C.Output: Sendable {
