@@ -85,6 +85,97 @@ struct TupleWriteTests {
         )
     }
 
+    @Test func tupleReadHandlesMissingOptionalConvertedFile() throws {
+        let directory = try TupleWriteTemporaryDirectory()
+        try Data("Meadow Stage".utf8)
+            .write(to: directory.url.appendingPathComponent("venue", withType: "txt"))
+
+        let tree = FileTree {
+            File.Optional("event", "txt")
+                .convert(TupleWriteTrimmingConversion())
+            File("venue", "txt")
+                .convert(TupleWriteTrimmingConversion())
+        }
+
+        let output = try tree.read(from: directory.url).output.requiredValue
+
+        #expect(output.0 == nil)
+        #expect(output.1 == "Meadow Stage")
+    }
+
+    @Test func tupleReadHandlesMissingOptionalConvertedFileBeforeDirectoryMany() throws {
+        let directory = try TupleWriteTemporaryDirectory()
+        let eventsURL = directory.url.appending(component: "events")
+        let eventURL = eventsURL.appending(component: "wicked-woods")
+        try FileManager.default.createDirectory(at: eventURL, withIntermediateDirectories: true)
+        try Data("Wicked Woods".utf8)
+            .write(to: eventURL.appendingPathComponent("event", withType: "txt"))
+
+        let tree = FileTree {
+            File.Optional("calendar", "txt")
+                .convert(TupleWriteTrimmingConversion())
+            Directory("events") {
+                Directory.Many {
+                    File("event", "txt")
+                        .convert(TupleWriteTrimmingConversion())
+                }
+            }
+        }
+
+        let output = try tree.read(from: directory.url).output.requiredValue
+
+        #expect(output.0 == nil)
+        #expect(output.1.map(\.directoryName) == ["wicked-woods"])
+        #expect(output.1.map(\.components) == ["Wicked Woods"])
+    }
+
+    @Test func convertedTupleReadHandlesMissingOptionalConvertedFileBeforeDirectoryMany() throws {
+        let directory = try TupleWriteTemporaryDirectory()
+        let eventsURL = directory.url.appending(component: "events")
+        let eventURL = eventsURL.appending(component: "wicked-woods")
+        try FileManager.default.createDirectory(at: eventURL, withIntermediateDirectories: true)
+        try Data("Wicked Woods".utf8)
+            .write(to: eventURL.appendingPathComponent("event", withType: "txt"))
+
+        let tree = FileTree {
+            File.Optional("calendar", "txt")
+                .convert(TupleWriteTrimmingConversion())
+            Directory("events") {
+                Directory.Many {
+                    File("event", "txt")
+                        .convert(TupleWriteTrimmingConversion())
+                }
+            }
+        }
+        .convert(TupleWriteRepositoryConversion())
+
+        let output = try tree.read(from: directory.url).output.requiredValue
+
+        #expect(output.calendar == nil)
+        #expect(output.events.map(\.directoryName) == ["wicked-woods"])
+        #expect(output.events.map(\.components) == ["Wicked Woods"])
+    }
+
+    @Test func nestedWriterReadHandlesMissingOptionalConvertedFileBeforeDirectoryMany() throws {
+        let directory = try TupleWriteTemporaryDirectory()
+        let eventsURL = directory.url.appending(component: "events")
+        let eventURL = eventsURL.appending(component: "wicked-woods")
+        try FileManager.default.createDirectory(at: eventURL, withIntermediateDirectories: true)
+        try Data("Wicked Woods".utf8)
+            .write(to: eventURL.appendingPathComponent("event", withType: "txt"))
+
+        let output = try TupleWriteRepositoryFileTree()
+            .read(from: directory.url)
+            .output
+            .requiredValue
+
+        #expect(output.calendar == nil)
+        #expect(output.events.map(\.directoryName) == ["wicked-woods"])
+        #expect(output.events.map(\.components.event) == ["Wicked Woods"])
+        #expect(output.events.map(\.components.stages) == [nil])
+        #expect(output.events.map(\.components.participants) == [nil])
+    }
+
     @Test func directoryTupleWritePrefixesGraphAndWritesInsideDirectory() throws {
         let directory = try TupleWriteTemporaryDirectory()
 
@@ -329,6 +420,130 @@ private struct TupleWriteWarningConversion: Conversion {
                     )
                 ]
             )
+        )
+    }
+}
+
+private struct TupleWriteRepository: Equatable {
+    var calendar: String?
+    var events: [DirectoryContent<String>]
+}
+
+private struct TupleWriteRepositoryConversion: Conversion {
+    func apply(_ input: (String?, [DirectoryContent<String>])) throws -> TupleWriteRepository {
+        TupleWriteRepository(calendar: input.0, events: input.1)
+    }
+
+    func unapply(_ output: TupleWriteRepository) throws -> (String?, [DirectoryContent<String>]) {
+        (output.calendar, output.events)
+    }
+}
+
+private struct TupleWriteRepositoryFileTree: FileTreeWriter {
+    var body: some FileTreeWriter<TupleWriteNestedRepository> {
+        FileTree {
+            File.Optional("calendar", "txt")
+                .convert(TupleWriteCalendarConversion())
+
+            Directory("events") {
+                Directory.Many {
+                    TupleWriteEventFileTree()
+                }
+            }
+        }
+        .convert(TupleWriteNestedRepositoryConversion())
+    }
+}
+
+private struct TupleWriteEventFileTree: FileTreeWriter {
+    var body: some FileTreeWriter<TupleWriteSourceEvent> {
+        FileTree {
+            File("event", "txt")
+                .convert(TupleWriteTrimmingConversion())
+
+            Directory.Optional("stages") {
+                File.Many(withExtension: "txt")
+                    .map(FileContentConversion(TupleWriteTrimmingConversion()))
+            }
+
+            Directory.Optional("participants") {
+                File.Many(withExtension: "txt")
+                    .map(FileContentConversion(TupleWriteTrimmingConversion()))
+            }
+        }
+        .convert(TupleWriteSourceEventConversion())
+    }
+}
+
+private struct TupleWriteNestedRepository: Equatable {
+    var calendar: TupleWriteCalendar?
+    var events: [DirectoryContent<TupleWriteSourceEvent>]
+}
+
+private struct TupleWriteCalendar: Equatable {
+    var name: String
+    var description: String?
+}
+
+private struct TupleWriteSourceEvent: Equatable {
+    var event: String
+    var stages: [FileContent<String>]?
+    var participants: [FileContent<String>]?
+}
+
+private struct TupleWriteNestedRepositoryConversion: Conversion {
+    func apply(
+        _ input: (TupleWriteCalendar?, [DirectoryContent<TupleWriteSourceEvent>])
+    ) throws -> TupleWriteNestedRepository {
+        TupleWriteNestedRepository(calendar: input.0, events: input.1)
+    }
+
+    func unapply(
+        _ output: TupleWriteNestedRepository
+    ) throws -> (TupleWriteCalendar?, [DirectoryContent<TupleWriteSourceEvent>]) {
+        (output.calendar, output.events)
+    }
+}
+
+private struct TupleWriteCalendarConversion: Conversion {
+    func apply(_ input: Data) throws -> TupleWriteCalendar {
+        TupleWriteCalendar(
+            name: String(decoding: input, as: UTF8.self),
+            description: nil
+        )
+    }
+
+    func unapply(_ output: TupleWriteCalendar) throws -> Data {
+        Data(output.name.utf8)
+    }
+}
+
+private struct TupleWriteSourceEventConversion: Conversion {
+    func apply(
+        _ input: (
+            String,
+            [FileContent<String>]?,
+            [FileContent<String>]?
+        )
+    ) throws -> TupleWriteSourceEvent {
+        TupleWriteSourceEvent(
+            event: input.0,
+            stages: input.1,
+            participants: input.2
+        )
+    }
+
+    func unapply(
+        _ output: TupleWriteSourceEvent
+    ) throws -> (
+        String,
+        [FileContent<String>]?,
+        [FileContent<String>]?
+    ) {
+        (
+            output.event,
+            output.stages,
+            output.participants
         )
     }
 }

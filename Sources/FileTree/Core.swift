@@ -100,9 +100,20 @@ public struct FileTreeBuilder {
         component
     }
 
-     public static func buildBlock<each Component>(_ component: repeat each Component) -> TupleFileSystemComponent<repeat each Component> where repeat each Component: FileTreeReader {
-         return TupleFileSystemComponent(repeat each component)
-     }
+    public static func buildBlock<First, Second>(
+        _ first: First,
+        _ second: Second
+    ) -> PairFileSystemComponent<First, Second>
+    where First: FileTreeReader, Second: FileTreeReader {
+        PairFileSystemComponent(first, second)
+    }
+
+    public static func buildBlock<each Component>(
+        _ component: repeat each Component
+    ) -> TupleFileSystemComponent<repeat each Component>
+    where repeat each Component: FileTreeReader {
+        TupleFileSystemComponent(repeat each component)
+    }
 
 //    public static func buildPartialBlock<F: FileTreeReader>(first content: F) -> F {
 //        content
