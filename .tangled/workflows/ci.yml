@@ -4,8 +4,17 @@ when:
   - event: ["pull_request"]
     branch: ["main"]
 
-engine: tack
+engine: microvm
+image: nixos
 
-tack:
-  buildkite:
-    pipeline: swift-file-tree
+virtualisation:
+  docker: true
+
+steps:
+  - name: "Build and test"
+    command: |
+      docker run --rm \
+        --volume "$PWD":/workdir \
+        --workdir /workdir \
+        swift:6.3-noble \
+        bash -lc 'swift build && swift test'
